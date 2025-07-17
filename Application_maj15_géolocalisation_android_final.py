@@ -17,7 +17,7 @@ meta_tag = '<meta name="viewport" content="width=device-width, initial-scale=1.0
 style_tag = """
 <style>
 button {
-    font-size: 4px !important;
+    font-size: 5px !important;
     padding: 10px 14px !important;
     touch-action: manipulation;
 }
@@ -49,13 +49,6 @@ L.Map.addInitHook(function () {
                 f.write(content)
 
 print("✅ Fichiers HTML adaptés pour mobile corrigés avec succès.")
-
-
-
-
-
-
-
 
 # Coordinates of the main cities of Bouches-du-Rhône
 villes_bdr = {
@@ -116,8 +109,12 @@ def ajouter_bouton_geolocalisation(map_objet, carte_nom_base):
             if (texte) {{
                 var map = {map_objet.get_name()};
                 var marker = L.marker([lat, lng]).addTo(map);
-                var popupContent = texte + '<br><button onclick="supprimerBulleGeoloc()">Supprimer cette info-bulle</button>';
+                var bulles = JSON.parse(localStorage.getItem(nomCarte + "_bulles") || "[]");
+                var index = bulles.length;
+                var popupContent = texte + '<br><button onclick="supprimerBulle(' + index + ')">Supprimer cette info-bulle</button>';
+
                 marker.bindPopup(popupContent).openPopup();
+                enregistrerBulle(lat, lng, texte, "geoloc");
                 enregistrerBulle(lat, lng, texte);
             }}
         }}, function(error) {{
@@ -400,7 +397,7 @@ for _, row in df.iterrows():
        fill_color=color,
        fill_opacity=0.05 if str(row["Ausculte"]).strip().lower() == "non" else 0.95,
        popup=popup_text,
-       tooltip=f"{row['pr']} ({row['cote']})",
+       tooltip = f"{row['route']} - {row['pr']} ({row['cote']})",
        **{"className": class_name}
    ).add_to(m_all)
 for route in df["route"].unique():
@@ -462,7 +459,7 @@ for agence, group in df.groupby("Agence"):
            fill_color=color,
            fill_opacity=0.05 if str(row["Ausculte"]).strip().lower() == "non" else 0.95,
            popup=popup_text,
-           tooltip=f"{row['pr']} ({row['cote']})",
+           tooltip = f"{row['route']} - {row['pr']} ({row['cote']})",
            **{"className": class_name}
        ).add_to(m)
    for route in group["route"].unique():
