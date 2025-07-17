@@ -162,7 +162,9 @@ def ajouter_boutons_info_bulle_et_osm(map_objet, carte_nom_base):
 <button onclick="document.getElementById('importFile').click()" style="background-color: #17a2b8; color: white; border: none; padding: 5px 10px; margin: 2px; border-radius: 4px;">Importer les annotations</button>
 <input type="file" id="importFile" style="display: none;" accept=".json" onchange="importerBulles(event)">
 </div>
+
 <script>
+
 var ajoutInfoBulleActif = false;
 var compteurBulles = 0;
 var maxBulles = 100;
@@ -252,7 +254,6 @@ document.addEventListener("DOMContentLoaded", function() {{
         var texte = prompt("Entrez le texte de l'info-bulle:");
         if (texte) {{
             var marker = L.marker(e.latlng).addTo(map);
-            var popupContent = texte + '<br><button onclick="supprimerBulle(' + compteurBulles + ')">X</button>';
             marker.bindPopup(popupContent).openPopup();
             enregistrerBulle(e.latlng.lat, e.latlng.lng, texte);
             compteurBulles++;
