@@ -135,7 +135,6 @@ def ajouter_suivi_position_temps_reel(map_objet):
     var map = {map_objet.get_name()};
     var positionMarker = null;
     var watchId = null;
-
     var blueIcon = new L.Icon({{
         iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
         shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
@@ -182,7 +181,7 @@ def ajouter_suivi_position_temps_reel(map_objet):
 
     <div style="
         position: fixed;
-        bottom: 20px;
+        bottom: 200px;
         right: 10px;
         z-index: 9999;
         background-color: white;
@@ -191,12 +190,13 @@ def ajouter_suivi_position_temps_reel(map_objet):
         box-shadow: 0 0 10px rgba(0,0,0,0.3);
         font-family: Arial;
         font-size: 10pt;">
-        <button id="tracking-btn" onclick="toggleTracking()" style="background-color: #007bff; color: white; border: none; padding: 6px 12px; border-radius: 4px;">
+        <button id="tracking-btn" onclick="toggleTracking()" style="background-color: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px;">
             Activer suivi position
         </button>
     </div>
     """
     map_objet.get_root().html.add_child(folium.Element(script))
+
 
 # The rest of the user's script would go here, and at the appropriate places, we integrate the new function:
 # For example, after creating the main map `m_all`, we add:
@@ -433,6 +433,7 @@ map_center = [df["lat"].mean(), df["lon"].mean()]
 m_all = folium.Map(location=map_center, zoom_start=10, tiles="Esri.WorldImagery")
 ajouter_noms_villes_bdr(m_all)
 m_all.add_child(MeasureControl(primary_length_unit='meters'))
+ajouter_suivi_position_temps_reel(m_all)
 ajouter_bouton_geolocalisation(m_all, "carte_toutes_agences")
 m_all.add_child(Draw(export=True))
 for _, row in df.iterrows():
@@ -491,6 +492,7 @@ ajouter_interface_filtrage(m_all)
 ajouter_texte_bas_gauche(m_all, "Julie PERNIN DTE & Sofienn NASRI VCSP")
 ajouter_filigrane_image(m_all, destination_logo)
 ajouter_boutons_info_bulle_et_osm(m_all, "carte_toutes_agences")
+ajouter_suivi_position_temps_reel(m_all)
 m_all.save(f"{output_dir}/carte_toutes_agences.html")
 for agence, group in df.groupby("Agence"):
    m = folium.Map(tiles="Esri.WorldImagery")
