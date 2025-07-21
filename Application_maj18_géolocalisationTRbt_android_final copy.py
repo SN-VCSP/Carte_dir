@@ -6,8 +6,6 @@ import os
 import shutil
 import base64
 
-import os
-
 # Dossier contenant les fichiers HTML
 import os
 
@@ -130,6 +128,74 @@ def ajouter_bouton_geolocalisation(map_objet, carte_nom_base):
     </script>
     """
     map_objet.get_root().html.add_child(folium.Element(geoloc_html))
+
+def ajouter_suivi_position_temps_reel(map_objet):
+    script = f"""
+    <script>
+    var map = {map_objet.get_name()};
+    var positionMarker = null;
+    var watchId = null;
+    var blueIcon = new L.Icon({{
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+    }});
+
+    function toggleTracking() {{
+        if (watchId !== null) {{
+            navigator.geolocation.clearWatch(watchId);
+            watchId = null;
+            if (positionMarker) {{
+                map.removeLayer(positionMarker);
+                positionMarker = null;
+            }}
+            document.getElementById("tracking-btn").innerText = "Activer suivi position";
+        }} else {{
+            if (navigator.geolocation) {{
+                watchId = navigator.geolocation.watchPosition(function(position) {{
+                    var lat = position.coords.latitude;
+                    var lng = position.coords.longitude;
+
+                    if (positionMarker) {{
+                        positionMarker.setLatLng([lat, lng]);
+                    }} else {{
+                        positionMarker = L.marker([lat, lng], {{icon: blueIcon}}).addTo(map)
+                            .bindPopup("Vous êtes ici").openPopup();
+                    }}
+                }}, function(error) {{
+                    console.error("Erreur de géolocalisation : ", error);
+                }}, {{
+                    enableHighAccuracy: true,
+                    maximumAge: 10000
+                }});
+                document.getElementById("tracking-btn").innerText = "Désactiver suivi position";
+            }} else {{
+                alert("La géolocalisation n'est pas supportée par ce navigateur.");
+            }}
+        }}
+    }}
+    </script>
+
+    <div style="
+        position: fixed;
+        bottom: 20px;
+        right: 10px;
+        z-index: 9999;
+        background-color: white;
+        padding: 8px;
+        border-radius: 6px;
+        box-shadow: 0 0 10px rgba(0,0,0,0.3);
+        font-family: Arial;
+        font-size: 10pt;">
+        <button id="tracking-btn" onclick="toggleTracking()" style="background-color: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px;">
+            Activer suivi position
+        </button>
+    </div>
+    """
+    map_objet.get_root().html.add_child(folium.Element(script))
 
 
 # The rest of the user's script would go here, and at the appropriate places, we integrate the new function:
@@ -264,8 +330,7 @@ document.addEventListener("DOMContentLoaded", function() {{
 </script>
     """
     map_objet.get_root().html.add_child(folium.Element(script_html))
-
-
+    
 
 def ajouter_interface_filtrage(map_objet):
    filter_html = """
