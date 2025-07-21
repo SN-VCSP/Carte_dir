@@ -5,6 +5,7 @@ from pyproj import Transformer
 import os
 import shutil
 import base64
+from folium import Element
 
 # Dossier contenant les fichiers HTML
 import os
@@ -129,19 +130,21 @@ def ajouter_bouton_geolocalisation(map_objet, carte_nom_base):
     """
     map_objet.get_root().html.add_child(folium.Element(geoloc_html))
 
+import folium
+from folium import Element
+
 def ajouter_suivi_position_temps_reel(map_objet):
     script = f"""
     <script>
     var map = {map_objet.get_name()};
     var positionMarker = null;
     var watchId = null;
-    var blueIcon = new L.Icon({{
-        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
-        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-        shadowSize: [41, 41]
+
+    var greenCrossIcon = L.divIcon({{
+        className: 'custom-div-icon',
+        html: "<div style='color: green; font-size: 24px;'>✚</div>",
+        iconSize: [30, 42],
+        iconAnchor: [15, 42]
     }});
 
     function toggleTracking() {{
@@ -162,7 +165,7 @@ def ajouter_suivi_position_temps_reel(map_objet):
                     if (positionMarker) {{
                         positionMarker.setLatLng([lat, lng]);
                     }} else {{
-                        positionMarker = L.marker([lat, lng], {{icon: blueIcon}}).addTo(map)
+                        positionMarker = L.marker([lat, lng], {{icon: greenCrossIcon}}).addTo(map)
                             .bindPopup("Vous êtes ici").openPopup();
                     }}
                 }}, function(error) {{
@@ -195,7 +198,7 @@ def ajouter_suivi_position_temps_reel(map_objet):
         </button>
     </div>
     """
-    map_objet.get_root().html.add_child(folium.Element(script))
+    map_objet.get_root().html.add_child(Element(script))
 
 
 # The rest of the user's script would go here, and at the appropriate places, we integrate the new function:
