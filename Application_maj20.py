@@ -5,10 +5,8 @@ from pyproj import Transformer
 import os
 import shutil
 import base64
-from folium import Element
 
 # Dossier contenant les fichiers HTML
-import os
 
 html_dir = "cartes_agences"
 
@@ -129,68 +127,6 @@ def ajouter_bouton_geolocalisation(map_objet, carte_nom_base):
     </script>
     """
     map_objet.get_root().html.add_child(folium.Element(geoloc_html))
-
-def ajouter_position_simple(map_objet):
-    script = f"""
-    <script>
-    var map = {map_objet.get_name()};
-    var positionMarker = null;
-    var blueIcon = new L.Icon({{
-        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
-        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-        shadowSize: [41, 41]
-    }});
-
-    function togglePosition() {{
-        if (positionMarker) {{
-            map.removeLayer(positionMarker);
-            positionMarker = null;
-            document.getElementById("position-btn").innerText = "Afficher ma position";
-        }} else {{
-            if (navigator.geolocation) {{
-                navigator.geolocation.getCurrentPosition(function(position) {{
-                    var lat = position.coords.latitude;
-                    var lng = position.coords.longitude;
-                    positionMarker = L.marker([lat, lng], {{icon: blueIcon}}).addTo(map)
-                        .bindPopup("Vous êtes ici").openPopup();
-                    map.setView([lat, lng], 15);
-                    document.getElementById("position-btn").innerText = "Masquer ma position";
-                function(error) {{
-                    console.error("Erreur de géolocalisation : ", error);
-                    alert("Impossible d'obtenir votre position.");
-                }});
-            }} else {{
-                alert("La géolocalisation n'est pas supportée par ce navigateur.");
-            }}
-        }}
-    }}
-
-    document.addEventListener("DOMContentLoaded", function() {{
-        document.getElementById("position-btn").addEventListener("click", togglePosition);
-    }});
-    </script>
-
-    <div style="
-        position: fixed;
-        bottom: 200px;
-        right: 10px;
-        z-index: 9999;
-        background-color: white;
-        padding: 8px;
-        border-radius: 6px;
-        box-shadow: 0 0 10px rgba(0,0,0,0.3);
-        font-family: Arial;
-        font-size: 10pt;">
-        <button id="position-btn" style="background-color: #007bff; color: white; border: none; padding: 6px 12px; border-radius: 4px;">
-            Afficher ma position
-        </button>
-    </div>
-    """
-    map_objet.get_root().html.add_child(Element(script))
-
 
 # Similarly, for each agency map `m`, we add:
 # ajouter_bouton_geolocalisation(m, f"carte_{safe_agence_name}")
@@ -423,7 +359,6 @@ map_center = [df["lat"].mean(), df["lon"].mean()]
 m_all = folium.Map(location=map_center, zoom_start=10, tiles="Esri.WorldImagery")
 ajouter_noms_villes_bdr(m_all)
 m_all.add_child(MeasureControl(primary_length_unit='meters'))
-ajouter_position_simple(m_all)
 ajouter_bouton_geolocalisation(m_all, "carte_toutes_agences")
 m_all.add_child(Draw(export=True))
 for _, row in df.iterrows():
@@ -482,7 +417,6 @@ ajouter_interface_filtrage(m_all)
 ajouter_texte_bas_gauche(m_all, "Julie PERNIN DTE & Sofienn NASRI VCSP")
 ajouter_filigrane_image(m_all, destination_logo)
 ajouter_boutons_info_bulle_et_osm(m_all, "carte_toutes_agences")
-ajouter_position_simple(m_all)
 m_all.save(f"{output_dir}/carte_toutes_agences.html")
 for agence, group in df.groupby("Agence"):
    m = folium.Map(tiles="Esri.WorldImagery")
