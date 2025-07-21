@@ -130,7 +130,6 @@ def ajouter_bouton_geolocalisation(map_objet, carte_nom_base):
     """
     map_objet.get_root().html.add_child(folium.Element(geoloc_html))
 
-import folium
 from folium import Element
 
 def ajouter_suivi_position_temps_reel(map_objet):
@@ -199,7 +198,6 @@ def ajouter_suivi_position_temps_reel(map_objet):
     </div>
     """
     map_objet.get_root().html.add_child(Element(script))
-
 
 # The rest of the user's script would go here, and at the appropriate places, we integrate the new function:
 # For example, after creating the main map `m_all`, we add:
