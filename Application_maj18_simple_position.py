@@ -149,7 +149,7 @@ def ajouter_position_simple(map_objet):
             positionMarker = null;
             document.getElementById("position-btn").innerText = "Afficher ma position";
         }} else {{
-           .geolocation.getCurrentPosition(function(position) {{
+           navigator.geolocation.getCurrentPosition(function(position) {{
                     var lat = position.coords.latitude;
                     var lng = position.coords.longitude;
                     positionMarker = L.marker([lat, lng], {{icon: blueIcon}}).addTo(map)
@@ -188,7 +188,6 @@ def ajouter_position_simple(map_objet):
     </div>
     """
     map_objet.get_root().html.add_child(folium.Element(script))
-
 
 # Similarly, for each agency map `m`, we add:
 # ajouter_bouton_geolocalisation(m, f"carte_{safe_agence_name}")
