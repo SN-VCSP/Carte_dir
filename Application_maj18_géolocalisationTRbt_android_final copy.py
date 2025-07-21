@@ -5,7 +5,6 @@ from pyproj import Transformer
 import os
 import shutil
 import base64
-from folium import Element
 
 # Dossier contenant les fichiers HTML
 import os
@@ -130,50 +129,37 @@ def ajouter_bouton_geolocalisation(map_objet, carte_nom_base):
     """
     map_objet.get_root().html.add_child(folium.Element(geoloc_html))
 
-from folium import Element
-
-def ajouter_suivi_position_temps_reel(map_objet):
+def ajouter_position_simple(map_objet):
     script = f"""
     <script>
     var map = {map_objet.get_name()};
     var positionMarker = null;
-    var watchId = null;
-
-    var greenCrossIcon = L.divIcon({{
-        className: 'custom-div-icon',
-        html: "<div style='color: green; font-size: 24px;'>✚</div>",
-        iconSize: [30, 42],
-        iconAnchor: [15, 42]
+    var blueIcon = new L.Icon({{
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
     }});
 
-    function toggleTracking() {{
-        if (watchId !== null) {{
-            navigator.geolocation.clearWatch(watchId);
-            watchId = null;
-            if (positionMarker) {{
-                map.removeLayer(positionMarker);
-                positionMarker = null;
-            }}
-            document.getElementById("tracking-btn").innerText = "Activer suivi position";
+    function togglePosition() {{
+        if (positionMarker) {{
+            map.removeLayer(positionMarker);
+            positionMarker = null;
+            document.getElementById("position-btn").innerText = "Afficher ma position";
         }} else {{
-            if (navigator.geolocation) {{
-                watchId = navigator.geolocation.watchPosition(function(position) {{
+                           navigator.geolocation.getCurrentPosition(function(position) {{
                     var lat = position.coords.latitude;
                     var lng = position.coords.longitude;
-
-                    if (positionMarker) {{
-                        positionMarker.setLatLng([lat, lng]);
-                    }} else {{
-                        positionMarker = L.marker([lat, lng], {{icon: greenCrossIcon}}).addTo(map)
-                            .bindPopup("Vous êtes ici").openPopup();
-                    }}
+                    positionMarker = L.marker([lat, lng], {{icon: blueIcon}}).addTo(map)
+                        .bindPopup("Vous êtes ici").openPopup();
+                    map.setView([lat, lng], 15);
+                    document.getElementById("position-btn").innerText = "Masquer ma position";
                 }}, function(error) {{
                     console.error("Erreur de géolocalisation : ", error);
-                }}, {{
-                    enableHighAccuracy: true,
-                    maximumAge: 10000
+                    alert("Impossible d'obtenir votre position.");
                 }});
-                document.getElementById("tracking-btn").innerText = "Désactiver suivi position";
             }} else {{
                 alert("La géolocalisation n'est pas supportée par ce navigateur.");
             }}
@@ -192,12 +178,13 @@ def ajouter_suivi_position_temps_reel(map_objet):
         box-shadow: 0 0 10px rgba(0,0,0,0.3);
         font-family: Arial;
         font-size: 10pt;">
-        <button id="tracking-btn" onclick="toggleTracking()" style="background-color: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px;">
-            Activer suivi position
+        <button id="position-btn" onclick="togglePosition()" style="background-color: #007bff; color: white; border: none; padding: 6px 12px; border-radius: 4px;">
+            Afficher ma position
         </button>
     </div>
     """
-    map_objet.get_root().html.add_child(Element(script))
+    map_objet.get_root().html.add_child(folium.Element(script))
+
 
 # The rest of the user's script would go here, and at the appropriate places, we integrate the new function:
 # For example, after creating the main map `m_all`, we add:
@@ -434,7 +421,7 @@ map_center = [df["lat"].mean(), df["lon"].mean()]
 m_all = folium.Map(location=map_center, zoom_start=10, tiles="Esri.WorldImagery")
 ajouter_noms_villes_bdr(m_all)
 m_all.add_child(MeasureControl(primary_length_unit='meters'))
-ajouter_suivi_position_temps_reel(m_all)
+ajouter_position_simple(m_all)
 ajouter_bouton_geolocalisation(m_all, "carte_toutes_agences")
 m_all.add_child(Draw(export=True))
 for _, row in df.iterrows():
@@ -493,7 +480,7 @@ ajouter_interface_filtrage(m_all)
 ajouter_texte_bas_gauche(m_all, "Julie PERNIN DTE & Sofienn NASRI VCSP")
 ajouter_filigrane_image(m_all, destination_logo)
 ajouter_boutons_info_bulle_et_osm(m_all, "carte_toutes_agences")
-ajouter_suivi_position_temps_reel(m_all)
+ajouter_position_simple(m_all)
 m_all.save(f"{output_dir}/carte_toutes_agences.html")
 for agence, group in df.groupby("Agence"):
    m = folium.Map(tiles="Esri.WorldImagery")
