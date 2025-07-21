@@ -128,7 +128,7 @@ def ajouter_bouton_geolocalisation(map_objet, carte_nom_base):
     </script>
     """
     map_objet.get_root().html.add_child(folium.Element(geoloc_html))
-
+    
 def ajouter_position_simple(map_objet):
     script = f"""
     <script>
@@ -149,7 +149,7 @@ def ajouter_position_simple(map_objet):
             positionMarker = null;
             document.getElementById("position-btn").innerText = "Afficher ma position";
         }} else {{
-                           navigator.geolocation.getCurrentPosition(function(position) {{
+           .geolocation.getCurrentPosition(function(position) {{
                     var lat = position.coords.latitude;
                     var lng = position.coords.longitude;
                     positionMarker = L.marker([lat, lng], {{icon: blueIcon}}).addTo(map)
@@ -165,6 +165,10 @@ def ajouter_position_simple(map_objet):
             }}
         }}
     }}
+
+    document.addEventListener("DOMContentLoaded", function() {{
+        document.getElementById("position-btn").addEventListener("click", togglePosition);
+    }});
     </script>
 
     <div style="
@@ -178,17 +182,13 @@ def ajouter_position_simple(map_objet):
         box-shadow: 0 0 10px rgba(0,0,0,0.3);
         font-family: Arial;
         font-size: 10pt;">
-        <button id="position-btn" onclick="togglePosition()" style="background-color: #007bff; color: white; border: none; padding: 6px 12px; border-radius: 4px;">
+        <button id="position-btn" style="background-color: #007bff; color: white; border: none; padding: 6px 12px; border-radius: 4px;">
             Afficher ma position
         </button>
     </div>
     """
     map_objet.get_root().html.add_child(folium.Element(script))
 
-
-# The rest of the user's script would go here, and at the appropriate places, we integrate the new function:
-# For example, after creating the main map `m_all`, we add:
-# ajouter_bouton_geolocalisation(m_all, "carte_toutes_agences")
 
 # Similarly, for each agency map `m`, we add:
 # ajouter_bouton_geolocalisation(m, f"carte_{safe_agence_name}")
