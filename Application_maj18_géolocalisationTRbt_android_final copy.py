@@ -135,6 +135,7 @@ def ajouter_suivi_position_temps_reel(map_objet):
     var map = {map_objet.get_name()};
     var positionMarker = null;
     var watchId = null;
+
     var blueIcon = new L.Icon({{
         iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
         shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
@@ -190,13 +191,12 @@ def ajouter_suivi_position_temps_reel(map_objet):
         box-shadow: 0 0 10px rgba(0,0,0,0.3);
         font-family: Arial;
         font-size: 10pt;">
-        <button id="tracking-btn" onclick="toggleTracking()" style="background-color: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px;">
+        <button id="tracking-btn" onclick="toggleTracking()" style="background-color: #007bff; color: white; border: none; padding: 6px 12px; border-radius: 4px;">
             Activer suivi position
         </button>
     </div>
     """
     map_objet.get_root().html.add_child(folium.Element(script))
-
 
 # The rest of the user's script would go here, and at the appropriate places, we integrate the new function:
 # For example, after creating the main map `m_all`, we add:
