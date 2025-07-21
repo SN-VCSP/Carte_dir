@@ -130,7 +130,22 @@ def ajouter_bouton_geolocalisation(map_objet, carte_nom_base):
     map_objet.get_root().html.add_child(folium.Element(geoloc_html))
     
 def ajouter_position_simple(map_objet):
-    script = f"""
+    position_html = f"""
+    <div id="position-controls" style="
+        position: fixed;
+        bottom: 200px;
+        right: 10px;
+        z-index: 9999;
+        background-color: rgba(255, 255, 255, 0.9);
+        padding: 10px;
+        border-radius: 8px;
+        box-shadow: 0 0 15px rgba(0,0,0,0.2);
+        font-family: Arial;
+        font-size: 10pt;">
+        <button onclick="centerOnPosition()" style="background-color: #007bff; color: white; border: none; padding: 6px 12px; border-radius: 4px;">
+            Aller à ma position
+        </button>
+    </div>
     <script>
     var map = {map_objet.get_name()};
     var positionCircle = null;
@@ -163,30 +178,9 @@ def ajouter_position_simple(map_objet):
             alert("La géolocalisation n'est pas supportée par ce navigateur.");
         }}
     }}
-
-    document.addEventListener("DOMContentLoaded", function() {{
-        document.getElementById("position-btn").addEventListener("click", centerOnPosition);
-    }});
     </script>
-
-    <div style="
-        position: fixed;
-        bottom: 200px;
-        right: 10px;
-        z-index: 9999;
-        background-color: white;
-        padding: 8px;
-        border-radius: 6px;
-        box-shadow: 0 0 10px rgba(0,0,0,0.3);
-        font-family: Arial;
-        font-size: 10pt;">
-        <button id="position-btn" style="background-color: #007bff; color: white; border: none; padding: 6px 12px; border-radius: 4px;">
-            Aller à ma position
-        </button>
-    </div>
     """
-    map_objet.get_root().html.add_child(folium.Element(script))
-
+    map_objet.get_root().html.add_child(folium.Element(position_html))
 
 # Updated function to add info-bubble and OSM/Esri toggle buttons
 def ajouter_boutons_info_bulle_et_osm(map_objet, carte_nom_base):
@@ -416,8 +410,8 @@ map_center = [df["lat"].mean(), df["lon"].mean()]
 m_all = folium.Map(location=map_center, zoom_start=10, tiles="Esri.WorldImagery")
 ajouter_noms_villes_bdr(m_all)
 m_all.add_child(MeasureControl(primary_length_unit='meters'))
-ajouter_position_simple(m_all)
 ajouter_bouton_geolocalisation(m_all, "carte_toutes_agences")
+ajouter_position_simple(m_all)
 m_all.add_child(Draw(export=True))
 for _, row in df.iterrows():
    fait = str(row["Fait"]).strip().lower()
@@ -475,8 +469,8 @@ ajouter_interface_filtrage(m_all)
 ajouter_texte_bas_gauche(m_all, "Julie PERNIN DTE & Sofienn NASRI VCSP")
 ajouter_filigrane_image(m_all, destination_logo)
 ajouter_boutons_info_bulle_et_osm(m_all, "carte_toutes_agences")
-ajouter_position_simple(m_all)
 m_all.save(f"{output_dir}/carte_toutes_agences.html")
+ajouter_position_simple(m_all)
 for agence, group in df.groupby("Agence"):
    m = folium.Map(tiles="Esri.WorldImagery")
    ajouter_noms_villes_bdr(m)
@@ -543,4 +537,5 @@ for agence, group in df.groupby("Agence"):
    safe_agence_name = "".join(c if c.isalnum() else "_" for c in agence)
    ajouter_boutons_info_bulle_et_osm(m, f"carte_{safe_agence_name}")
    ajouter_bouton_geolocalisation(m, f"carte_{safe_agence_name}")
+   ajouter_position_simple(m_all)
    m.save(f"{output_dir}/carte_{safe_agence_name}.html")
