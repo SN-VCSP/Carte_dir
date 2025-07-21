@@ -133,41 +133,39 @@ def ajouter_position_simple(map_objet):
     script = f"""
     <script>
     var map = {map_objet.get_name()};
-    var positionMarker = null;
-    var blueIcon = new L.Icon({{
-        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
-        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-        shadowSize: [41, 41]
-    }});
+    var positionCircle = null;
 
-    function togglePosition() {{
-        if (positionMarker) {{
-            map.removeLayer(positionMarker);
-            positionMarker = null;
-            document.getElementById("position-btn").innerText = "Afficher ma position";
+    function centerOnPosition() {{
+        if (navigator.geolocation) {{
+            navigator.geolocation.getCurrentPosition(function(position) {{
+                var lat = position.coords.latitude;
+                var lng = position.coords.longitude;
+                var accuracy = position.coords.accuracy;
+
+                map.setView([lat, lng], 15);
+
+                if (positionCircle) {{
+                    map.removeLayer(positionCircle);
+                }}
+
+                positionCircle = L.circle([lat, lng], {{
+                    color: '#007bff',
+                    fillColor: '#007bff',
+                    fillOpacity: 0.2,
+                    radius: accuracy
+                }}).addTo(map);
+
+            }}, function(error) {{
+                console.error("Erreur de géolocalisation : ", error);
+                alert("Impossible d'obtenir votre position.");
+            }});
         }} else {{
-           navigator.geolocation.getCurrentPosition(function(position) {{
-                    var lat = position.coords.latitude;
-                    var lng = position.coords.longitude;
-                    positionMarker = L.marker([lat, lng], {{icon: blueIcon}}).addTo(map)
-                        .bindPopup("Vous êtes ici").openPopup();
-                    map.setView([lat, lng], 15);
-                    document.getElementById("position-btn").innerText = "Masquer ma position";
-                }}, function(error) {{
-                    console.error("Erreur de géolocalisation : ", error);
-                    alert("Impossible d'obtenir votre position.");
-                }});
-            }} else {{
-                alert("La géolocalisation n'est pas supportée par ce navigateur.");
-            }}
+            alert("La géolocalisation n'est pas supportée par ce navigateur.");
         }}
     }}
 
     document.addEventListener("DOMContentLoaded", function() {{
-        document.getElementById("position-btn").addEventListener("click", togglePosition);
+        document.getElementById("position-btn").addEventListener("click", centerOnPosition);
     }});
     </script>
 
@@ -183,14 +181,12 @@ def ajouter_position_simple(map_objet):
         font-family: Arial;
         font-size: 10pt;">
         <button id="position-btn" style="background-color: #007bff; color: white; border: none; padding: 6px 12px; border-radius: 4px;">
-            Afficher ma position
+            Aller à ma position
         </button>
     </div>
     """
     map_objet.get_root().html.add_child(folium.Element(script))
 
-# Similarly, for each agency map `m`, we add:
-# ajouter_bouton_geolocalisation(m, f"carte_{safe_agence_name}")
 
 # Updated function to add info-bubble and OSM/Esri toggle buttons
 def ajouter_boutons_info_bulle_et_osm(map_objet, carte_nom_base):
