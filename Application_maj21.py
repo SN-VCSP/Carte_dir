@@ -6,7 +6,10 @@ import os
 import shutil
 import base64
 
+import os
+
 # Dossier contenant les fichiers HTML
+import os
 
 html_dir = "cartes_agences"
 
@@ -128,6 +131,11 @@ def ajouter_bouton_geolocalisation(map_objet, carte_nom_base):
     """
     map_objet.get_root().html.add_child(folium.Element(geoloc_html))
 
+
+# The rest of the user's script would go here, and at the appropriate places, we integrate the new function:
+# For example, after creating the main map `m_all`, we add:
+# ajouter_bouton_geolocalisation(m_all, "carte_toutes_agences")
+
 # Similarly, for each agency map `m`, we add:
 # ajouter_bouton_geolocalisation(m, f"carte_{safe_agence_name}")
 
@@ -246,6 +254,7 @@ document.addEventListener("DOMContentLoaded", function() {{
         var texte = prompt("Entrez le texte de l'info-bulle:");
         if (texte) {{
             var marker = L.marker(e.latlng).addTo(map);
+            var popupContent = texte + '<br><button onclick="supprimerBulle(' + compteurBulles + ')">X</button>';
             marker.bindPopup(popupContent).openPopup();
             enregistrerBulle(e.latlng.lat, e.latlng.lng, texte);
             compteurBulles++;
@@ -256,7 +265,8 @@ document.addEventListener("DOMContentLoaded", function() {{
 </script>
     """
     map_objet.get_root().html.add_child(folium.Element(script_html))
-    
+
+
 
 def ajouter_interface_filtrage(map_objet):
    filter_html = """
