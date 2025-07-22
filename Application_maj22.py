@@ -118,7 +118,6 @@ def ajouter_bouton_geolocalisation(map_objet, carte_nom_base):
 
             marker.bindPopup(popupContent).openPopup();
             enregistrerBulle(lat, lng, texte, "geoloc");
-            enregistrerBulle(lat, lng, texte);
         }}, function(error) {{
             alert("Erreur de géolocalisation: " + error.message);
         }});
@@ -140,6 +139,7 @@ def ajouter_bouton_geolocalisation(map_objet, carte_nom_base):
 # ajouter_bouton_geolocalisation(m, f"carte_{safe_agence_name}")
 
 # Updated function to add info-bubble and OSM/Esri toggle buttons
+
 def ajouter_boutons_info_bulle_et_osm(map_objet, carte_nom_base):
     script_html = f"""
 <div id="info-bulle-controls" style="
@@ -154,17 +154,16 @@ def ajouter_boutons_info_bulle_et_osm(map_objet, carte_nom_base):
     box-shadow: 0 0 15px rgba(0,0,0,0.2);
     font-family: Arial;
     font-size: 9pt;">
-<button onclick="activerAjoutInfoBulle()" style="background-color: #007bff; color: white; border: none; padding: 5px 10px; margin: 2px; border-radius: 4px;">Ajouter annotation</button>
-<button onclick="changerFondCarte()" style="background-color: #28a745; color: white; border: none; padding: 5px 10px; margin: 2px; border-radius: 4px;">Passer à OpenStreetMap</button>
-<button onclick="location.reload()" style="background-color: #6f42c1; color: white; border: none; padding: 5px 10px; margin: 2px; border-radius: 4px;">Recharger la carte</button>
-<button onclick="supprimerToutesLesBulles()" style="background-color: #dc3545; color: white; border: none; padding: 5px 10px; margin: 2px; border-radius: 4px;">Supprimer toutes les annotations</button>
-<button onclick="exporterBulles()" style="background-color: #ffc107; color: white; border: none; padding: 5px 10px; margin: 2px; border-radius: 4px;">Exporter les annotations</button>
-<button onclick="document.getElementById('importFile').click()" style="background-color: #17a2b8; color: white; border: none; padding: 5px 10px; margin: 2px; border-radius: 4px;">Importer les annotations</button>
-<input type="file" id="importFile" style="display: none;" accept=".json" onchange="importerBulles(event)">
+    <button onclick="activerAjoutInfoBulle()" style="background-color: #007bff; color: white;">Ajouter annotation</button>
+    <button onclick="changerFondCarte()" style="background-color: #28a745; color: white;">Passer à OpenStreetMap</button>
+    <button onclick="location.reload()" style="background-color: #6f42c1; color: white;">Recharger la carte</button>
+    <button onclick="supprimerToutesLesBulles()" style="background-color: #dc3545; color: white;">Supprimer toutes les annotations</button>
+    <button onclick="exporterBulles()" style="background-color: #ffc107; color: white;">Exporter les annotations</button>
+    <button onclick="document.getElementById('importFile').click()" style="background-color: #17a2b8; color: white;">Importer les annotations</button>
+    <input type="file" id="importFile" style="display: none;" accept=".json" onchange="importerBulles(event)">
 </div>
 
 <script>
-
 var ajoutInfoBulleActif = false;
 var compteurBulles = 0;
 var maxBulles = 100;
@@ -182,7 +181,7 @@ function activerAjoutInfoBulle() {{
 function changerFondCarte() {{
     var map = {map_objet.get_name()};
     var osmLayer = L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        attribution: '&copy; https://www.openstreetmap.org/copyright contributors'
     }});
     map.eachLayer(function(layer) {{
         map.removeLayer(layer);
@@ -194,7 +193,7 @@ function chargerBulles(map) {{
     var bulles = JSON.parse(localStorage.getItem(nomCarte + "_bulles") || "[]");
     bulles.forEach(function(bulle, index) {{
         var marker = L.marker([bulle.lat, bulle.lng]).addTo(map);
-        var popupContent = bulle.texte + '<br><button onclick="supprimerBulle(' + index + ')">Supprimer cette info-bulle</button>';
+        var popupContent = bulle.texte + '<br><button onclick="supprimerBulle(' + index + ')">Supprimer</button>';
         marker.bindPopup(popupContent);
         compteurBulles++;
     }});
@@ -224,13 +223,18 @@ function supprimerToutesLesBulles() {{
 
 function exporterBulles() {{
     var bulles = JSON.parse(localStorage.getItem(nomCarte + "_bulles") || "[]");
-    var dataStr = JSON.stringify(bulles);
-    var dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    var dataStr = JSON.stringify(bulles, null, 2); // Ajout d'indentation pour lisibilité
+    var blob = new Blob([dataStr], {{ type: "application/json" }});
+    var url = URL.createObjectURL(blob);
     var exportFileDefaultName = nomCarte + '_bulles.json';
+
     var linkElement = document.createElement('a');
-    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('href', url);
     linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.setAttribute('type', 'application/json');
+    document.body.appendChild(linkElement);
     linkElement.click();
+    document.body.removeChild(linkElement);
 }}
 
 function importerBulles(event) {{
@@ -265,7 +269,6 @@ document.addEventListener("DOMContentLoaded", function() {{
 </script>
     """
     map_objet.get_root().html.add_child(folium.Element(script_html))
-
 
 
 def ajouter_interface_filtrage(map_objet):
