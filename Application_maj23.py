@@ -91,7 +91,7 @@ def ajouter_bouton_geolocalisation(map_objet, carte_nom_base):
         border-radius: 8px;
         box-shadow: 0 0 15px rgba(0,0,0,0.2);
         font-family: Arial;
-        font-size: 9pt;">
+        font-size: 10pt;">
         <button onclick="activerGeolocalisation()" style="background-color: #007bff; color: white; border: none; padding: 5px 10px; margin: 2px; border-radius: 4px;">Ajouter Info-Bulle à ma position</button>
     </div>
     <script>
@@ -149,11 +149,11 @@ def ajouter_boutons_info_bulle_et_osm(map_objet, carte_nom_base):
     transform: translateX(-50%);
     z-index: 9999;
     background-color: rgba(255, 255, 255, 0.9);
-    padding: 10px;
-    border-radius: 8px;
-    box-shadow: 0 0 15px rgba(0,0,0,0.2);
+    padding: 15px;
+    border-radius: 12px;
+    box-shadow: 0 0 16px rgba(0,0,0,0.2);
     font-family: Arial;
-    font-size: 9pt;">
+    font-size: 12pt;">
 <button onclick="activerAjoutInfoBulle()" style="background-color: #007bff; color: white;">Ajouter annotation</button>
 <button onclick="changerFondCarte()" style="background-color: #28a745; color: white;">Passer à OpenStreetMap</button>
 <button onclick="location.reload()" style="background-color: #6f42c1; color: white;">Recharger la carte</button>
@@ -166,12 +166,12 @@ def ajouter_boutons_info_bulle_et_osm(map_objet, carte_nom_base):
 <script>
 var ajoutInfoBulleActif = false;
 var compteurBulles = 0;
-var maxBulles = 100;
+var maxBulles = 200;
 var nomCarte = "{carte_nom_base}";
  
 function activerAjoutInfoBulle() {{
     if (compteurBulles >= maxBulles) {{
-        alert("Limite de 100 info-bulles atteinte.");
+        alert("Limite de 200 info-bulles atteinte.");
         return;
     }}
     alert("Cliquez sur la carte pour placer l'info-bulle.");
@@ -282,7 +282,7 @@ def ajouter_interface_filtrage(map_objet):
        border-radius: 8px;
        box-shadow: 0 0 15px rgba(0,0,0,0.2);
        font-family: Arial;
-       font-size: 13pt;">
+       font-size: 11pt;">
 <strong>Masquer-Afficher:</strong><br>
 <button onclick="toggleLayer('oui')" style="background-color: #95c415; color: white; border: none; padding: 5px 10px; margin: 2px; border-radius: 4px;">Fait (Oui)</button>
 <button onclick="toggleLayer('non')" style="background-color: #aa9e9f; color: white; border: none; padding: 5px 10px; margin: 2px; border-radius: 4px;">Fait (Non)</button>
