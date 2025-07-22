@@ -154,21 +154,21 @@ def ajouter_boutons_info_bulle_et_osm(map_objet, carte_nom_base):
     box-shadow: 0 0 15px rgba(0,0,0,0.2);
     font-family: Arial;
     font-size: 9pt;">
-    <button onclick="activerAjoutInfoBulle()" style="background-color: #007bff; color: white;">Ajouter annotation</button>
-    <button onclick="changerFondCarte()" style="background-color: #28a745; color: white;">Passer à OpenStreetMap</button>
-    <button onclick="location.reload()" style="background-color: #6f42c1; color: white;">Recharger la carte</button>
-    <button onclick="supprimerToutesLesBulles()" style="background-color: #dc3545; color: white;">Supprimer toutes les annotations</button>
-    <button onclick="exporterBulles()" style="background-color: #ffc107; color: white;">Exporter les annotations</button>
-    <button onclick="document.getElementById('importFile').click()" style="background-color: #17a2b8; color: white;">Importer les annotations</button>
-    <input type="file" id="importFile" style="display: none;" accept=".json" onchange="importerBulles(event)">
+<button onclick="activerAjoutInfoBulle()" style="background-color: #007bff; color: white;">Ajouter annotation</button>
+<button onclick="changerFondCarte()" style="background-color: #28a745; color: white;">Passer à OpenStreetMap</button>
+<button onclick="location.reload()" style="background-color: #6f42c1; color: white;">Recharger la carte</button>
+<button onclick="supprimerToutesLesBulles()" style="background-color: #dc3545; color: white;">Supprimer toutes les annotations</button>
+<button onclick="exporterBulles()" style="background-color: #ffc107; color: white;">Exporter les annotations</button>
+<button onclick="document.getElementById('importFile').click()" style="background-color: #17a2b8; color: white;">Importer les annotations</button>
+<input type="file" id="importFile" style="display: none;" accept=".json" onchange="importerBulles(event)">
 </div>
-
+ 
 <script>
 var ajoutInfoBulleActif = false;
 var compteurBulles = 0;
 var maxBulles = 100;
 var nomCarte = "{carte_nom_base}";
-
+ 
 function activerAjoutInfoBulle() {{
     if (compteurBulles >= maxBulles) {{
         alert("Limite de 100 info-bulles atteinte.");
@@ -177,7 +177,7 @@ function activerAjoutInfoBulle() {{
     alert("Cliquez sur la carte pour placer l'info-bulle.");
     ajoutInfoBulleActif = true;
 }}
-
+ 
 function changerFondCarte() {{
     var map = {map_objet.get_name()};
     var osmLayer = L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
@@ -188,7 +188,7 @@ function changerFondCarte() {{
     }});
     osmLayer.addTo(map);
 }}
-
+ 
 function chargerBulles(map) {{
     var bulles = JSON.parse(localStorage.getItem(nomCarte + "_bulles") || "[]");
     bulles.forEach(function(bulle, index) {{
@@ -198,13 +198,13 @@ function chargerBulles(map) {{
         compteurBulles++;
     }});
 }}
-
+ 
 function enregistrerBulle(lat, lng, texte) {{
     var bulles = JSON.parse(localStorage.getItem(nomCarte + "_bulles") || "[]");
     bulles.push({{lat: lat, lng: lng, texte: texte}});
     localStorage.setItem(nomCarte + "_bulles", JSON.stringify(bulles));
 }}
-
+ 
 function supprimerBulle(index) {{
     if (confirm("Supprimer cette info-bulle ?")) {{
         var bulles = JSON.parse(localStorage.getItem(nomCarte + "_bulles") || "[]");
@@ -213,21 +213,21 @@ function supprimerBulle(index) {{
         location.reload();
     }}
 }}
-
+ 
 function supprimerToutesLesBulles() {{
     if (confirm("Êtes-vous sûr de vouloir supprimer toutes les info-bulles ?")) {{
         localStorage.removeItem(nomCarte + "_bulles");
         location.reload();
     }}
 }}
-
+ 
 function exporterBulles() {{
     var bulles = JSON.parse(localStorage.getItem(nomCarte + "_bulles") || "[]");
     var dataStr = JSON.stringify(bulles, null, 2); // Ajout d'indentation pour lisibilité
     var blob = new Blob([dataStr], {{ type: "application/json" }});
     var url = URL.createObjectURL(blob);
     var exportFileDefaultName = nomCarte + '_bulles.json';
-
+ 
     var linkElement = document.createElement('a');
     linkElement.setAttribute('href', url);
     linkElement.setAttribute('download', exportFileDefaultName);
@@ -236,7 +236,7 @@ function exporterBulles() {{
     linkElement.click();
     document.body.removeChild(linkElement);
 }}
-
+ 
 function importerBulles(event) {{
     var file = event.target.files[0];
     if (file) {{
@@ -249,7 +249,7 @@ function importerBulles(event) {{
         reader.readAsText(file);
     }}
 }}
-
+ 
 document.addEventListener("DOMContentLoaded", function() {{
     var map = {map_objet.get_name()};
     chargerBulles(map);
@@ -269,7 +269,6 @@ document.addEventListener("DOMContentLoaded", function() {{
 </script>
     """
     map_objet.get_root().html.add_child(folium.Element(script_html))
-
 
 def ajouter_interface_filtrage(map_objet):
    filter_html = """
