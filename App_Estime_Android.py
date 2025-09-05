@@ -43,7 +43,7 @@ from pathlib import Path
 # ─────────────────────────────────────────────────────────────
 # CONFIG APP & RESSOURCES
 # ─────────────────────────────────────────────────────────────
-st.set_page_config(page_title="Estimation de surfaces - SN", layout="wide")
+st.set_page_config(page_title="Estimation Mobile", layout="wide", initial_sidebar_state="collapsed")
 import base64
 from pathlib import Path
 import streamlit as st
@@ -901,36 +901,12 @@ if dist_method == "Segment édité":
         edit_options={"edit": True, "remove": True},
     ).add_to(m)
 
-help_popup = """
-<div style="
-    position: absolute; z-index:9999; top: 90px; right: 12px;
-    background-color: rgba(255,255,255,0.95);
-    border: 2px solid #bbb; border-radius: 6px;
-    padding: 10px; font-size: 13px; width: 260px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);" role="dialog" aria-label="Aide outil de dessin">
-    <b>ℹ️ Comment utiliser l’outil de dessin ?</b><br><br>
-    <ol style="padding-left: 18px; margin: 0;">
-        <li>Cliquez sur l’icône <b>polyligne</b> (en haut à gauche de la carte).</li>
-        <li>Dessinez votre tracé directement sur la carte.</li>
-        <li>Cliquez sur <b>Finish</b> (à droite de l’icône polyligne) pour valider.</li>
-        <li>Sélectionnez le <b>Profil Type</b> dans la liste déroulante.</li>
-        <li>Cliquez sur <b>“➕ Ajouter comme sous-segment”</b> pour l’appliquer au profil choisi.</li>
-        <li>Cliquez sur <b>Largeurs par élément</b> pour modifier les variables/ligne si nécessaire.</li>
-    </ol>
-    <br>
-</div>
-"""
-m.get_root().html.add_child(folium.Element(help_popup))
 
 # Légende profils (masque % en mode édition simple)
 legend_html = make_legend_html(profiles_selected, percents, show_percentages=(dist_method != "Segment édité"))
-m.get_root().html.add_child(folium.Element(legend_html))
-
-# Légende automatique des points PR (bas-gauche)
+m.get_root()# Légende automatique des points PR (bas-gauche)
 pr_legend_html = make_pr_points_legend(dirmed_df_all)
-m.get_root().html.add_child(folium.Element(pr_legend_html))
-
-# Couche DIRMED — points & labels de villes
+m.get_root()# Couche DIRMED — points & labels de villes
 if dirmed_df_all is not None and not dirmed_df_all.empty:
     layer_dirmed = folium.FeatureGroup(name="DIRMED-Auscultations-DTE", show=True)
     for city, (clat, clon) in BOUCHES_DU_RHONE_CITIES.items():
@@ -978,9 +954,7 @@ if dirmed_df_all is not None and not dirmed_df_all.empty:
                 opacity=0.9,
             ).add_to(layer_dirmed)
     layer_dirmed.add_to(m)
-    folium.LayerControl(collapsed=False).add_to(m)
-
-# ─────────────────────────────────────────────────────────────
+    # ─────────────────────────────────────────────────────────────
 # OUTIL : Cercles d'annotation pour PR intermédiaires — Expander repliable
 # ─────────────────────────────────────────────────────────────
 with st.expander("➕ Ajouter des cercles d'annotation (PR intermédiaires)", expanded=False):
