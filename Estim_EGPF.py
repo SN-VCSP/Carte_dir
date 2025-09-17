@@ -150,23 +150,23 @@ def _normalize_yn(v: str) -> str:
             .replace('non', 'non'))
 
 
-
-
 # =========================
 # Matériaux par défaut (densités éditables) pour reprofilage
 # =========================
 DEFAULT_MATERIALS = [
     # Densités usuelles (ajustables) en t/m³
-    {"matériau": "GB",   "densité_t_m3": 2.30, "épaisseur_cm": 0.0},   # Grave-bitume
-    {"matériau": "BBTM", "densité_t_m3": 2.40, "épaisseur_cm": 0.0},   # Très mince
+    {"matériau": "GB",   "densité_t_m3": 2.35, "épaisseur_cm": 0.0},   # Grave-bitume
+    {"matériau": "BBTM", "densité_t_m3": 2.35, "épaisseur_cm": 0.0},   # Très mince
     {"matériau": "BBM",  "densité_t_m3": 2.35, "épaisseur_cm": 0.0},   # Béton bitumineux mince (optionnel)
     {"matériau": "BBSG", "densité_t_m3": 2.35, "épaisseur_cm": 0.0},   # BBSG/BBSGF … (optionnel)
+    {"matériau": "BBDr",   "densité_t_m3": 2.35, "épaisseur_cm": 0.0},   # Béton Bitumineux Drainant (plus léger)
+    {"matériau": "BBME",   "densité_t_m3": 2.35, "épaisseur_cm": 0.0},   # Béton Bitumineux à Module Elevé
+    {"matériau": "Grille anti-fissure", "densité_t_m3": 0.0, "épaisseur_cm": 0.01}, # Géogrille (masse surfacique, pas volumique)
 ]
 
 # État (session) pour la table matériaux
 if "materials_df" not in st.session_state:
     st.session_state["materials_df"] = pd.DataFrame(DEFAULT_MATERIALS)
-
 
 
 
@@ -637,7 +637,7 @@ def make_legend_html(selected: List[str], percentages: List[int], show_percentag
 # =========================
 # UI — Flux unique
 # =========================
-st.title("Estimation de surfaces_Vinci-Construction_SNASRI")
+st.title("Estimation_EGPF_Vinci-Construction_SNASRI")
 
 # ---- Import des données
 with st.container():
@@ -1053,7 +1053,6 @@ if dist_method == "Segment édité":
     ).add_to(m)
 
 
-
 help_popup = """
 <div style="
     position: absolute; z-index:9999; top: 90px; right: 12px;
@@ -1063,15 +1062,15 @@ help_popup = """
     box-shadow: 0 2px 8px rgba(0,0,0,0.2);" role="dialog" aria-label="Aide outil de dessin">
     <b>ℹ️ Comment utiliser l’outil de dessin ?</b><br><br>
     <ol style="padding-left: 18px; margin: 0;">
-        <li>Cliquez sur l’icône <b>ligne</b> (en haut à gauche de la carte).</li>
-        <li>Dessinez votre tracé directement sur la carte.</li>
-        <li>Cliquez sur <b>Finish</b> (à droite de l’icône polyligne) pour valider.</li>
-        <li>Sélectionnez le <b>Profil Type</b> dans la liste déroulante.</li>
-        <li>Cliquez sur <b>Largeurs par élément</b> pour modifier les variables/ligne si nécessaire.</li>
-        <li>Cliquez sur <b>“➕ Ajouter comme sous-segment”</b> pour l’appliquer au profil choisi.</li>
+        <li>1. Sélectionnez le <b>Profil Type</b> dans la liste déroulante au-dessus dans Profils et éléments à inclure.</li>
+        <li>2. Cliquez sur l’icône <b>ligne</b> (en haut à gauche de la carte).</li>
+        <li>3. Dessinez votre tracé directement sur la carte.</li>
+        <li>4. Cliquez sur <b>Valider</b> (à droite de l’icône polyligne) pour enregistrer la ligne.</li>
+        <li>5. Cliquez sur <b>Largeurs par élément</b> pour modifier les variables/ligne si nécessaire.</li>
+        <li>6. Cliquez sur <b>“➕ Ajouter comme sous-segment”</b> pour l’appliquer au profil choisi.</li>
+        <li>7. Vous pouvez modifier les variables de l’élément dans <b>Modifier</b> si besoin.</li>
     </ol>
     <br>
-    <i>Astuce :</i> Changez le profil avant de dessiner pour colorer la ligne correctement.
 </div>
 """
 m.get_root().html.add_child(folium.Element(help_popup))
@@ -1648,16 +1647,21 @@ with tab_rabot:
     if elems_sel_rabot:
         rabot_src = rabot_src[rabot_src["élément"].isin(elems_sel_rabot)].copy()
 
+
     # 3) Édition multi-hauteurs (passes) par élément
     # Chaque élément a une liste dynamique en session : rabot_list_{seg_key}__{el}
     rows = []
     vol_total_rabot = 0.0
 
+    # >>> NOUVEAU : mémo local pour "Reprendre depuis l'élément au-dessus"
+    prev_el_name = None
+    prev_el_passes = None
+
     for _, row in rabot_src.iterrows():
         el = str(row["élément"])
         surf = float(row["surface_m2"]) if pd.notna(row["surface_m2"]) else 0.0
-
         st.markdown(f"### {el} — {surf:,.0f} m²".replace(",", " "))
+
         key_prefix = f"{seg_key}__{el}"
         list_key = f"rabot_list_{key_prefix}"
 
@@ -1674,6 +1678,22 @@ with tab_rabot:
             st.session_state[list_key] = migrated or [{"label": "Passe 1", "h": 0.0}]
 
         passes = st.session_state[list_key]
+
+        # --- NOUVEAUTÉ (comportement strict) :
+        #     Bouton pour "Reprendre les passes depuis l’élément au-dessus"
+        if base_rabot == "Par élément" and prev_el_name is not None:
+            with st.expander("Reprendre les passes depuis l’élément au‑dessus", expanded=False):
+                if st.button(
+                    f"⬇️ Copier depuis {prev_el_name}",
+                    key=f"rabot_copy_prev_{key_prefix}",
+                    use_container_width=True,
+                ):
+                    st.session_state[list_key] = [
+                        {"label": str(p.get("label", f"Passe {i+1}")), "h": float(p.get("h", 0.0))}
+                        for i, p in enumerate(prev_el_passes or [])
+                    ]
+                    st.rerun()
+        # --- fin nouveauté
 
         # Actions rapides pour l'élément : mise à jour en masse des hauteurs
         with st.expander("Mise à jour rapide des hauteurs pour cet élément", expanded=False):
@@ -1746,9 +1766,15 @@ with tab_rabot:
                 st.session_state[list_key] = [{"label": "Passe 1", "h": 0.0}]
                 st.rerun()
 
+        # >>> Mémoriser l’élément courant comme "précédent" pour le suivant
+        prev_el_name = el
+        prev_el_passes = [
+            {"label": str(p.get("label", f"Passe {i+1}")), "h": float(p.get("h", 0.0))}
+            for i, p in enumerate(st.session_state[list_key] or [])
+        ]
+
     # 4) Résultats & Exports
     df_rabot = pd.DataFrame(rows)
-
     st.markdown("### ✅ Détail rabotage (multi-hauteurs)")
     if not df_rabot.empty:
         view_cols = ["élément", "passe", "surface_m2", "hauteur_cm", "volume_m3"]
@@ -1770,8 +1796,50 @@ with tab_rabot:
         )
         st.dataframe(tot_el, width="stretch")
 
-        # Exports CSV
+        # 👉 Suffixe d'export (DÉFINI AVANT tout usage)
         _suf = _export_suffix(route, cote, pr_start, pr_end)
+
+        # ── Totaux par hauteur de rabotage (cm)
+        st.markdown("#### Totaux par hauteur de rabotage (cm)")
+        # Arrondir légèrement pour éviter des doublons 3.0000001, etc.
+        tmp_rabot = df_rabot.copy()
+        tmp_rabot["hauteur_cm"] = tmp_rabot["hauteur_cm"].round(2)
+        recap_hauteurs = (
+            tmp_rabot.groupby("hauteur_cm", as_index=False)[["surface_m2", "volume_m3"]]
+            .sum()
+            .sort_values("hauteur_cm", ascending=True)
+        )
+        st.dataframe(recap_hauteurs, width="stretch")
+
+        # Export CSV : totaux par hauteur
+        st.download_button(
+            "Télécharger totaux par hauteur (CSV)",
+            data=recap_hauteurs.to_csv(index=False).encode("utf-8"),
+            file_name=f"rabotage_totaux_par_hauteur_{_suf}.csv",
+            mime="text/csv",
+        )
+
+        # ── Cumul progressif par hauteur (tri croissant)
+        st.markdown("#### Cumul progressif par hauteur (ordre croissant)")
+        recap_hauteurs_cum = recap_hauteurs.copy()
+        recap_hauteurs_cum["surface_cumulée_m2"] = recap_hauteurs_cum["surface_m2"].cumsum()
+        recap_hauteurs_cum["volume_cumulé_m3"]  = recap_hauteurs_cum["volume_m3"].cumsum()
+        st.dataframe(
+            recap_hauteurs_cum[
+                ["hauteur_cm", "surface_m2", "volume_m3", "surface_cumulée_m2", "volume_cumulé_m3"]
+            ],
+            width="stretch"
+        )
+
+        # Export CSV : cumul progressif
+        st.download_button(
+            "Télécharger cumul par hauteur (CSV)",
+            data=recap_hauteurs_cum.to_csv(index=False).encode("utf-8"),
+            file_name=f"rabotage_cumul_par_hauteur_{_suf}.csv",
+            mime="text/csv",
+        )
+
+        # Exports CSV existants
         st.download_button(
             "Télécharger le détail (CSV)",
             data=df_rabot[view_cols].to_csv(index=False).encode("utf-8"),
@@ -1786,6 +1854,7 @@ with tab_rabot:
         )
     else:
         st.info("Aucune passe de rabotage saisie pour cette sélection.")
+
 
 
 
@@ -1835,8 +1904,6 @@ def _safe_default_density(mat: str, materials_df: pd.DataFrame) -> float:
 
 
 
-
-
 # =========================
 # Onglet 2 : REPROFILAGE SIMPLIFIÉ MULTI-MATÉRIAUX
 # =========================
@@ -1851,28 +1918,31 @@ with tab_reprof:
         key="base_reprof_simple"
     )
 
-    # 2) Source des surfaces (élément + surface_m2) :
-    #    - Toute la voirie : une seule ligne 'TOUTE_VOIRIE'
-    #    - Par élément : BAU/BDG/VL/VR/VM/VS/BRET présents dans recap_elements
+    # 2) Source des surfaces (élément + surface_m2)
     reprof_src = _ensure_surfaces_source(base_reprof, recap_elements, surface_totale_voirie).copy()
 
-    # 3) Matériaux : proviennent de la session (densité et épaisseur par défaut déjà gérées par DEFAULT_MATERIALS)
+    # 3) Matériaux disponibles (densités & épaisseurs par défaut)
     materials_df = st.session_state.get("materials_df", pd.DataFrame(DEFAULT_MATERIALS))
     if materials_df.empty:
         st.warning("⚠️ Aucun matériau défini. Ajoute des matériaux avec une densité (t/m³) et une épaisseur par défaut (cm).")
         st.stop()
 
     mat_opts = materials_df["matériau"].astype(str).tolist()
-
     rows = []
-    # 4) Pour chaque ligne (élément ou globale), autoriser N matériaux
+
+    # >>> NOUVEAU : mémo local pour reprise "depuis l’élément au‑dessus"
+    prev_el_name = None
+    prev_el_mats = None
+    # Liste d’ordre d’affichage des éléments (utile pour copie depuis un autre élément)
+    all_elements_order = reprof_src["élément"].astype(str).tolist()
+
+    # 4) Pour chaque ligne (élément ou globale), N matériaux
     for _, row in reprof_src.iterrows():
         el = str(row["élément"])
         surf = float(row["surface_m2"]) if pd.notna(row["surface_m2"]) else 0.0
-
         st.markdown(f"### {el} — {surf:,.0f} m²".replace(",", " "))
 
-        # Clé de session qui dépend du segment et de l'élément → évite les collisions d'un tronçon à l'autre
+        # Clé de session dépendant du segment et de l’élément
         key_prefix = f"{seg_key}__{el}"
         list_key = f"mats_{key_prefix}"
 
@@ -1886,7 +1956,50 @@ with tab_reprof:
 
         mats_list = st.session_state[list_key]
 
-        # Affichage des lignes Matériau×Épaisseur
+        # --- NOUVEAU : Reprendre depuis l’élément au-dessus (même logique que Rabotage)
+        if base_reprof == "Par élément" and prev_el_name is not None:
+            with st.expander("Reprendre les matériaux depuis l’élément au‑dessus", expanded=False):
+                if st.button(
+                    f"⬇️ Copier depuis {prev_el_name}",
+                    key=f"reprof_copy_prev_{key_prefix}",
+                    use_container_width=True,
+                ):
+                    # Remplace par une copie profonde de la liste précédente
+                    st.session_state[list_key] = [
+                        {"mat": str(p.get("mat")), "ep": float(p.get("ep", 0.0))}
+                        for p in (prev_el_mats or [])
+                    ] or [{
+                        "mat": mat_opts[0],
+                        "ep": float(_safe_default_thickness(mat_opts[0], materials_df))
+                    }]
+                    st.rerun()
+
+        # --- NOUVEAU : Copier depuis un autre élément (ex. VL -> VR)
+        if base_reprof == "Par élément" and len(all_elements_order) > 1:
+            with st.expander("Copier depuis un autre élément", expanded=False):
+                others = [e for e in all_elements_order if e != el]
+                src_choice = st.selectbox(
+                    "Élément source",
+                    options=others,
+                    key=f"reprof_src_{key_prefix}",
+                )
+                if st.button(
+                    "Copier ici",
+                    key=f"reprof_copy_from_{key_prefix}",
+                    use_container_width=True,
+                ):
+                    src_key = f"mats_{seg_key}__{src_choice}"
+                    src_list = st.session_state.get(src_key, [])
+                    if src_list:
+                        st.session_state[list_key] = [
+                            {"mat": str(p.get("mat")), "ep": float(p.get("ep", 0.0))}
+                            for p in src_list
+                        ]
+                        st.rerun()
+                    else:
+                        st.warning(f"Aucun matériau défini pour {src_choice}.")
+
+        # Lignes Matériau × Épaisseur
         for idx, item in enumerate(list(mats_list)):
             col1, col2, col3, col4 = st.columns([2, 2, 2, 1], vertical_alignment="center")
 
@@ -1908,7 +2021,6 @@ with tab_reprof:
                 st.write(f"Densité : **{dens:.2f} t/m³**")
 
             with col3:
-                # Épaisseur par matériau (cm) — valeur par défaut issue du matériau si non saisie
                 default_ep = float(_safe_default_thickness(mat, materials_df))
                 ep = st.number_input(
                     f"Épaisseur {idx+1} (cm)",
@@ -1928,9 +2040,9 @@ with tab_reprof:
             mats_list[idx]["mat"] = mat
             mats_list[idx]["ep"] = ep
 
-            # Calculs (volume & tonnage pour CE matériau)
-            vol = surf * (ep / 100.0)             # m³ = m² × (cm/100)
-            ton = vol * dens                       # t  = m³ × densité (t/m³)
+            # Calculs (volume & tonnage pour ce matériau)
+            vol = surf * (ep / 100.0)   # m³ = m² × (cm/100)
+            ton = vol * dens            # t = m³ × densité (t/m³)
 
             rows.append({
                 "élément": el,
@@ -1952,6 +2064,7 @@ with tab_reprof:
                     "ep": float(_safe_default_thickness(default_mat, materials_df))
                 })
                 st.rerun()
+
         with c_reset:
             if st.button(f"⟲ Réinitialiser {el}", key=f"reset_{key_prefix}"):
                 default_mat = mat_opts[0]
@@ -1961,9 +2074,15 @@ with tab_reprof:
                 }]
                 st.rerun()
 
+        # >>> NOUVEAU : mémoriser l’élément courant comme "précédent" pour le suivant
+        prev_el_name = el
+        prev_el_mats = [
+            {"mat": str(p.get("mat")), "ep": float(p.get("ep", 0.0))}
+            for p in (st.session_state[list_key] or [])
+        ]
+
     # 5) Résultats & Exports
     df_calc = pd.DataFrame(rows)
-
     if not df_calc.empty:
         # Colonnes affichées dans l’ordre
         view_cols = ["élément", "matériau", "surface_m2", "densité_t_m3", "épaisseur_cm", "volume_m3", "tonnage_t"]
@@ -1982,12 +2101,20 @@ with tab_reprof:
 
         # Totaux par élément
         st.markdown("#### Totaux par élément")
-        tot_el = df_calc.groupby("élément", as_index=False)[["volume_m3", "tonnage_t"]].sum().sort_values("tonnage_t", ascending=False)
+        tot_el = (
+            df_calc.groupby("élément", as_index=False)[["volume_m3", "tonnage_t"]]
+            .sum()
+            .sort_values("tonnage_t", ascending=False)
+        )
         st.dataframe(tot_el, width="stretch")
 
         # Totaux par matériau
         st.markdown("#### Totaux par matériau")
-        tot_mat = df_calc.groupby("matériau", as_index=False)[["volume_m3", "tonnage_t"]].sum().sort_values("tonnage_t", ascending=False)
+        tot_mat = (
+            df_calc.groupby("matériau", as_index=False)[["volume_m3", "tonnage_t"]]
+            .sum()
+            .sort_values("tonnage_t", ascending=False)
+        )
         st.dataframe(tot_mat, width="stretch")
 
         # Exports CSV
@@ -2012,9 +2139,6 @@ with tab_reprof:
         )
     else:
         st.info("Aucune saisie de matériaux/épaisseurs n’a encore été effectuée pour cette sélection.")
-
-
-
 
 
 
