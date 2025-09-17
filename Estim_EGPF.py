@@ -704,7 +704,7 @@ with st.sidebar:
     dep_sel = []
     if "departement" in df.columns:
         dep_opts = sorted(pd.Series(df["departement"].dropna().astype(str).unique()).tolist())
-        dep_sel = st.multiselect("depPrs", options=dep_opts, default=[])
+        dep_sel = st.multiselect("Département", options=dep_opts, default=[])
 
     _df_f = df.copy()
     if cons_sel and "Gestionnaire" in _df_f.columns:
