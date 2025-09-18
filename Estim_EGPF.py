@@ -650,7 +650,7 @@ def make_legend_html(selected: List[str], percentages: List[int], show_percentag
 # =========================
 # UI — Flux unique
 # =========================
-st.title("Estimation_SNASRI")
+st.title("Estimation_SN")
 
 # ---- Import des données
 with st.container():
