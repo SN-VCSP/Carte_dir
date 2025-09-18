@@ -30,6 +30,19 @@ def _round_df0(df: pd.DataFrame, exclude: list[str] | None = None) -> pd.DataFra
 # =========================
 st.set_page_config(page_title="Estimation de surfaces -Sn", layout="wide")
 
+# === Détection / Activation mode smartphone ===
+with st.sidebar:
+    is_mobile = st.checkbox("📱 Mode smartphone", value=False)
+
+if is_mobile:
+    DEFAULT_MAP_HEIGHT = 380   # Carte moins haute pour mobile
+    DEFAULT_ZOOM = 13          # Zoom initial plus adapté
+    POPUP_MAX_WIDTH = 240      # Popups plus étroits
+else:
+    DEFAULT_MAP_HEIGHT = 750
+    DEFAULT_ZOOM = 14
+    POPUP_MAX_WIDTH = 300
+
 
 def resource_path(relative_path):
     """Retourne le chemin absolu, compatible PyInstaller"""
@@ -637,7 +650,7 @@ def make_legend_html(selected: List[str], percentages: List[int], show_percentag
 # =========================
 # UI — Flux unique
 # =========================
-st.title("Estimation_EGPF_Vinci-Construction_SNASRI")
+st.title("Estimation_Autoroutes_EGPF_SNASRI")
 
 # ---- Import des données
 with st.container():
@@ -778,16 +791,20 @@ with colE:
 with colF:
     curvature_factor = st.number_input("Facteur de courbure", value=1.00, step=0.01, min_value=0.90, max_value=1.20)
 with colF2:
-    map_height = st.slider("Hauteur carte (px)", min_value=500, max_value=1000, value=750, step=10)
-    zoom_init = st.slider("Zoom initial", min_value=10, max_value=18, value=14, step=1)
+    map_height = st.slider("Hauteur carte (px)", min_value=300, max_value=900,
+                        value=DEFAULT_MAP_HEIGHT, step=10)
+    zoom_init = st.slider("Zoom initial", min_value=10, max_value=18,
+                        value=DEFAULT_ZOOM, step=1)
 
-# ---- Profils et éléments (AVANT la carte pour fixer la couleur du dessin)
+# =========================
+# Profils et éléments à inclure (déplacé ici après les cercles PR)
+# =========================
 st.markdown("---")
 st.markdown("#### Profils et éléments à inclure")
 colG, colH = st.columns([1.1, 1])
 
 with colG:
-    # >>> MODIF : UI conditionnelle. En 'Segment édité' -> 1 profil, pas de %
+    # UI conditionnelle : en 'Segment édité' -> 1 profil, pas de %
     if dist_method == "Segment édité":
         profile_simple = st.selectbox(
             "Profil du sous-segment (mode édition simple — pas de pourcentages)",
@@ -829,6 +846,8 @@ with colH:
         included_elements = ALL_ELEMENTS.copy()
     else:
         included_elements = st.multiselect("Éléments inclus", ALL_ELEMENTS, default=["BDG", "VL", "VR", "VM", "BAU", "BRET"])
+
+
 
 # ---- Largeurs (avec overrides)
 st.markdown("---")
@@ -1054,7 +1073,7 @@ if dist_method == "Segment édité":
 
 
 help_popup = """
-<div style="
+<div id="help-popup" style="
     position: absolute; z-index:9999; top: 90px; right: 12px;
     background-color: rgba(255,255,255,0.95);
     border: 2px solid #bbb; border-radius: 6px;
@@ -1076,7 +1095,6 @@ help_popup = """
 m.get_root().html.add_child(folium.Element(help_popup))
 
 
-
 # >>> MODIF : légende sans % si mode 'Segment édité'
 legend_html = make_legend_html(profiles_selected, percents, show_percentages=(dist_method != "Segment édité"))
 m.get_root().html.add_child(folium.Element(legend_html))
@@ -1084,6 +1102,27 @@ m.get_root().html.add_child(folium.Element(legend_html))
 # Légende automatique des points PR (bas-gauche)
 pr_legend_html = make_pr_points_legend(dirmed_df_all)
 m.get_root().html.add_child(folium.Element(pr_legend_html))
+
+
+
+# --- Option manuelle pour masquer légendes et notice ---
+toggle_ui = st.checkbox("Masquer / Réafficher légendes/notice", value=False)
+
+if toggle_ui:
+    # On masque les éléments de légende et la notice, quel que soit le mode
+    hide_css = """
+    <style>
+      #maplegend, #pr-maplegend, #help-popup {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+      }
+    </style>
+    """
+    m.get_root().html.add_child(folium.Element(hide_css))
+# Sinon, les légendes restent visibles
+
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1124,8 +1163,7 @@ if dirmed_df_all is not None and not dirmed_df_all.empty:
         tooltip = f"{r.get('route','')} - {r.get('pr','')} ({r.get('cote','')})"
         popup_html = build_pr_popup_html(r)  # déjà défini dans ton code
         iframe = IFrame(html=popup_html, width=320, height=210)
-        popup = folium.Popup(iframe, max_width=320)
-
+        popup = folium.Popup(iframe, max_width=POPUP_MAX_WIDTH)
         # marqueur principal
         folium.CircleMarker(
             location=(float(r["lat"]), float(r["lon"])),
@@ -1218,6 +1256,7 @@ for idx, c in enumerate(st.session_state["circles"]):
     ).add_to(m)
 
 
+
 col_map, col_actions = st.columns([4, 1])
 with col_map:
     # Conserver un key stable évite les remounts (optionnel mais recommandé)
@@ -1252,7 +1291,8 @@ with col_actions:
     # Liste et gestion des sous-segments
     subsegs = st.session_state["subsegments"].get(seg_key, [])
     if subsegs:
-        if st.button("🗑️ Supprimer tous les sous-segments"):
+        if st.button("🗑️ Supprimer tout",
+                    help="Supprimer tous les sous-segments"):
             st.session_state["subsegments"][seg_key] = []
             # On ne réinitialise pas les compteurs pour conserver l'historique de numérotation
             st.rerun()
@@ -1267,9 +1307,10 @@ with col_actions:
 
         # 🔑 un seul bouton "Ajouter", avec key unique (supprime le doublon plus bas)
         if st.button(
-            "➕ Ajouter comme sous-segment",
+            "➕ Ajouter segment",
             disabled=not can_add,
-            key=f"btn_add_subseg_{seg_key}"
+            key=f"btn_add_subseg_{seg_key}",
+            help="Ajouter comme sous-segment"
         ):
             # --- Choix de la ligne à ajouter ---
             if len(edited_wgs_list) == 1:
