@@ -650,7 +650,7 @@ def make_legend_html(selected: List[str], percentages: List[int], show_percentag
 # =========================
 # UI — Flux unique
 # =========================
-st.title("Estimation_Autoroutes_EGPF_SNASRI")
+st.title("Estimation_SNASRI")
 
 # ---- Import des données
 with st.container():
@@ -974,39 +974,81 @@ document.addEventListener("DOMContentLoaded", function() {
 </script>
 
 <style>
-/* === Agrandir les boutons Leaflet.Draw (barre d'outils) === */
+/* === Boutons Leaflet.Draw : responsive === */
 .leaflet-draw-toolbar a {
-    width: 88px !important;
-    height: 88px !important;
-    background-size: 58px 58px !important;
-    background-position: center center !important;
     border-radius: 8px !important;
+    background-position: center center !important;
+    background-size: contain !important;
 }
 
-/* === Agrandir les boutons d'actions (Finish, Delete, Cancel) === */
+/* Desktop : grands boutons */
+@media (min-width: 768px) {
+    .leaflet-draw-toolbar a {
+        width: 88px !important;
+        height: 88px !important;
+        background-size: 58px 58px !important;
+    }
+}
+
+/* Mobile : boutons plus compacts */
+@media (max-width: 767px) {
+    .leaflet-draw-toolbar a {
+        width: 52px !important;
+        height: 52px !important;
+        background-size: 32px 32px !important;
+    }
+}
+
+/* === Boutons d'actions (Finish, Delete, Cancel) === */
+.leaflet-draw-actions {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 10px;
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    z-index: 9999 !important;
+    margin-top: 6px;
+}
+
 .leaflet-draw-actions a {
-    font-size: 22px !important;
-    padding: 16px 28px !important;
+    font-size: 16px !important;
+    padding: 10px 16px !important;
     height: auto !important;
-    border-radius: 8px !important;
+    border-radius: 6px !important;
     background: #fff !important;
     border: 1px solid #ccc !important;
     color: #333 !important;
     text-decoration: none !important;
+    cursor: pointer !important;
 }
 
-/* Espacement entre les boutons d'action */
-.leaflet-draw-actions {
-    gap: 12px;
+/* Desktop : actions plus grandes */
+@media (min-width: 768px) {
+    .leaflet-draw-actions a {
+        font-size: 22px !important;
+        padding: 16px 28px !important;
+    }
 }
 
-/* === Style popup (inchangé) === */
+/* Forcer le bouton Finish à être toujours visible */
+.leaflet-draw-actions a.leaflet-draw-actions-finish {
+    display: inline-block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+/* === Style popup (inchangé mais un peu modernisé) === */
 .leaflet-popup-content-wrapper {
   border-radius: 12px !important;
   box-shadow: 0 10px 28px rgba(0,0,0,0.18) !important;
   border: 1px solid #e5e8ed !important;
+  background: #fff !important;
 }
-.leaflet-popup-content { margin: 8px 10px !important; }
+.leaflet-popup-content { 
+  margin: 8px 10px !important; 
+  font-size: 14px !important;
+}
 .leaflet-popup-tip {
   background: #ffffff !important;
   border: 1px solid #e5e8ed !important;
@@ -1094,22 +1136,9 @@ help_popup = """
 """
 m.get_root().html.add_child(folium.Element(help_popup))
 
-
-# >>> MODIF : légende sans % si mode 'Segment édité'
-legend_html = make_legend_html(profiles_selected, percents, show_percentages=(dist_method != "Segment édité"))
-m.get_root().html.add_child(folium.Element(legend_html))
-
-# Légende automatique des points PR (bas-gauche)
-pr_legend_html = make_pr_points_legend(dirmed_df_all)
-m.get_root().html.add_child(folium.Element(pr_legend_html))
-
-
-
-# --- Option manuelle pour masquer légendes et notice ---
-toggle_ui = st.checkbox("Masquer / Réafficher légendes/notice", value=False)
-
-if toggle_ui:
-    # On masque les éléments de légende et la notice, quel que soit le mode
+# --- Légendes / notice ---
+if is_mobile:
+    # Masquer automatiquement les légendes et la notice en mode mobile
     hide_css = """
     <style>
       #maplegend, #pr-maplegend, #help-popup {
@@ -1121,7 +1150,28 @@ if toggle_ui:
     </style>
     """
     m.get_root().html.add_child(folium.Element(hide_css))
-# Sinon, les légendes restent visibles
+else:
+    # Ajouter les légendes uniquement en mode desktop
+    legend_html = make_legend_html(profiles_selected, percents, show_percentages=(dist_method != "Segment édité"))
+    m.get_root().html.add_child(folium.Element(legend_html))
+
+    pr_legend_html = make_pr_points_legend(dirmed_df_all)
+    m.get_root().html.add_child(folium.Element(pr_legend_html))
+
+    # Option manuelle pour masquer les légendes sur desktop
+    toggle_ui = st.checkbox("Masquer / Réafficher légendes/notice", value=False)
+    if toggle_ui:
+        hide_css = """
+        <style>
+          #maplegend, #pr-maplegend, #help-popup {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+          }
+        </style>
+        """
+        m.get_root().html.add_child(folium.Element(hide_css))
 
 
 
