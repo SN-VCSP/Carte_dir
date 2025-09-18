@@ -30,6 +30,19 @@ def _round_df0(df: pd.DataFrame, exclude: list[str] | None = None) -> pd.DataFra
 # =========================
 st.set_page_config(page_title="Estimation de surfaces -Sn", layout="wide")
 
+# === Détection / Activation mode smartphone ===
+with st.sidebar:
+    is_mobile = st.checkbox("📱 Mode smartphone", value=False)
+
+if is_mobile:
+    DEFAULT_MAP_HEIGHT = 380   # Carte moins haute pour mobile
+    DEFAULT_ZOOM = 13          # Zoom initial plus adapté
+    POPUP_MAX_WIDTH = 240      # Popups plus étroits
+else:
+    DEFAULT_MAP_HEIGHT = 750
+    DEFAULT_ZOOM = 14
+    POPUP_MAX_WIDTH = 300
+
 
 def resource_path(relative_path):
     """Retourne le chemin absolu, compatible PyInstaller"""
@@ -637,7 +650,7 @@ def make_legend_html(selected: List[str], percentages: List[int], show_percentag
 # =========================
 # UI — Flux unique
 # =========================
-st.title("Estimation_EGPF_Vinci-Construction_SNASRI")
+st.title("Estimation_SN")
 
 # ---- Import des données
 with st.container():
@@ -778,16 +791,20 @@ with colE:
 with colF:
     curvature_factor = st.number_input("Facteur de courbure", value=1.00, step=0.01, min_value=0.90, max_value=1.20)
 with colF2:
-    map_height = st.slider("Hauteur carte (px)", min_value=500, max_value=1000, value=750, step=10)
-    zoom_init = st.slider("Zoom initial", min_value=10, max_value=18, value=14, step=1)
+    map_height = st.slider("Hauteur carte (px)", min_value=300, max_value=900,
+                        value=DEFAULT_MAP_HEIGHT, step=10)
+    zoom_init = st.slider("Zoom initial", min_value=10, max_value=18,
+                        value=DEFAULT_ZOOM, step=1)
 
-# ---- Profils et éléments (AVANT la carte pour fixer la couleur du dessin)
+# =========================
+# Profils et éléments à inclure (déplacé ici après les cercles PR)
+# =========================
 st.markdown("---")
 st.markdown("#### Profils et éléments à inclure")
 colG, colH = st.columns([1.1, 1])
 
 with colG:
-    # >>> MODIF : UI conditionnelle. En 'Segment édité' -> 1 profil, pas de %
+    # UI conditionnelle : en 'Segment édité' -> 1 profil, pas de %
     if dist_method == "Segment édité":
         profile_simple = st.selectbox(
             "Profil du sous-segment (mode édition simple — pas de pourcentages)",
@@ -829,6 +846,8 @@ with colH:
         included_elements = ALL_ELEMENTS.copy()
     else:
         included_elements = st.multiselect("Éléments inclus", ALL_ELEMENTS, default=["BDG", "VL", "VR", "VM", "BAU", "BRET"])
+
+
 
 # ---- Largeurs (avec overrides)
 st.markdown("---")
@@ -931,6 +950,49 @@ folium.TileLayer(
     overlay=False,
     control=False
 ).add_to(m)
+# ➕ Amélioration tactile : navigation + dessin polyline
+map_js_name = m.get_name()
+m.get_root().html.add_child(folium.Element(f"""
+<script>
+(function() {{
+  var map = {map_js_name};
+  if (!map) return;
+
+  // Tolérance tactile
+  map.options.tapTolerance = 20;
+
+  var drawing = false;
+
+  // Active/désactive le flag quand on dessine
+  map.on(L.Draw.Event.DRAWSTART, function(e) {{
+    if (e.layerType === 'polyline') drawing = true;
+  }});
+  map.on(L.Draw.Event.DRAWSTOP, function() {{
+    drawing = false;
+  }});
+
+  // On laisse le drag/zoom actifs
+  map.touchZoom.enable();
+  map.dragging.enable();
+
+  // 👉 Facultatif : bouton pour basculer entre mode dessin/navigation
+  var navButton = L.control({{position: 'topleft'}});
+  navButton.onAdd = function() {{
+    var btn = L.DomUtil.create('button', 'leaflet-bar');
+    btn.innerHTML = '🖊️/🖐️';
+    btn.title = 'Basculer Dessin / Navigation';
+    btn.style.background = 'white';
+    btn.style.cursor = 'pointer';
+    btn.onclick = function() {{
+      drawing = !drawing;
+      btn.style.background = drawing ? '#cfc' : 'white';
+    }};
+    return btn;
+  }};
+  navButton.addTo(map);
+}})();
+</script>
+"""))
 
 
 st.markdown("""
@@ -955,39 +1017,81 @@ document.addEventListener("DOMContentLoaded", function() {
 </script>
 
 <style>
-/* === Agrandir les boutons Leaflet.Draw (barre d'outils) === */
+/* === Boutons Leaflet.Draw : responsive === */
 .leaflet-draw-toolbar a {
-    width: 88px !important;
-    height: 88px !important;
-    background-size: 58px 58px !important;
-    background-position: center center !important;
     border-radius: 8px !important;
+    background-position: center center !important;
+    background-size: contain !important;
 }
 
-/* === Agrandir les boutons d'actions (Finish, Delete, Cancel) === */
+/* Desktop : grands boutons */
+@media (min-width: 768px) {
+    .leaflet-draw-toolbar a {
+        width: 88px !important;
+        height: 88px !important;
+        background-size: 58px 58px !important;
+    }
+}
+
+/* Mobile : boutons plus compacts */
+@media (max-width: 767px) {
+    .leaflet-draw-toolbar a {
+        width: 52px !important;
+        height: 52px !important;
+        background-size: 32px 32px !important;
+    }
+}
+
+/* === Boutons d'actions (Finish, Delete, Cancel) === */
+.leaflet-draw-actions {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 10px;
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    z-index: 9999 !important;
+    margin-top: 6px;
+}
+
 .leaflet-draw-actions a {
-    font-size: 22px !important;
-    padding: 16px 28px !important;
+    font-size: 16px !important;
+    padding: 10px 16px !important;
     height: auto !important;
-    border-radius: 8px !important;
+    border-radius: 6px !important;
     background: #fff !important;
     border: 1px solid #ccc !important;
     color: #333 !important;
     text-decoration: none !important;
+    cursor: pointer !important;
 }
 
-/* Espacement entre les boutons d'action */
-.leaflet-draw-actions {
-    gap: 12px;
+/* Desktop : actions plus grandes */
+@media (min-width: 768px) {
+    .leaflet-draw-actions a {
+        font-size: 22px !important;
+        padding: 16px 28px !important;
+    }
 }
 
-/* === Style popup (inchangé) === */
+/* Forcer le bouton Finish à être toujours visible */
+.leaflet-draw-actions a.leaflet-draw-actions-finish {
+    display: inline-block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+/* === Style popup (inchangé mais un peu modernisé) === */
 .leaflet-popup-content-wrapper {
   border-radius: 12px !important;
   box-shadow: 0 10px 28px rgba(0,0,0,0.18) !important;
   border: 1px solid #e5e8ed !important;
+  background: #fff !important;
 }
-.leaflet-popup-content { margin: 8px 10px !important; }
+.leaflet-popup-content { 
+  margin: 8px 10px !important; 
+  font-size: 14px !important;
+}
 .leaflet-popup-tip {
   background: #ffffff !important;
   border: 1px solid #e5e8ed !important;
@@ -1054,7 +1158,7 @@ if dist_method == "Segment édité":
 
 
 help_popup = """
-<div style="
+<div id="help-popup" style="
     position: absolute; z-index:9999; top: 90px; right: 12px;
     background-color: rgba(255,255,255,0.95);
     border: 2px solid #bbb; border-radius: 6px;
@@ -1075,15 +1179,43 @@ help_popup = """
 """
 m.get_root().html.add_child(folium.Element(help_popup))
 
+# --- Légendes / notice ---
+if is_mobile:
+    # Masquer automatiquement les légendes et la notice en mode mobile
+    hide_css = """
+    <style>
+      #maplegend, #pr-maplegend, #help-popup {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+      }
+    </style>
+    """
+    m.get_root().html.add_child(folium.Element(hide_css))
+else:
+    # Ajouter les légendes uniquement en mode desktop
+    legend_html = make_legend_html(profiles_selected, percents, show_percentages=(dist_method != "Segment édité"))
+    m.get_root().html.add_child(folium.Element(legend_html))
 
+    pr_legend_html = make_pr_points_legend(dirmed_df_all)
+    m.get_root().html.add_child(folium.Element(pr_legend_html))
 
-# >>> MODIF : légende sans % si mode 'Segment édité'
-legend_html = make_legend_html(profiles_selected, percents, show_percentages=(dist_method != "Segment édité"))
-m.get_root().html.add_child(folium.Element(legend_html))
+    # Option manuelle pour masquer les légendes sur desktop
+    toggle_ui = st.checkbox("Masquer / Réafficher légendes/notice", value=False)
+    if toggle_ui:
+        hide_css = """
+        <style>
+          #maplegend, #pr-maplegend, #help-popup {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+          }
+        </style>
+        """
+        m.get_root().html.add_child(folium.Element(hide_css))
 
-# Légende automatique des points PR (bas-gauche)
-pr_legend_html = make_pr_points_legend(dirmed_df_all)
-m.get_root().html.add_child(folium.Element(pr_legend_html))
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1124,8 +1256,7 @@ if dirmed_df_all is not None and not dirmed_df_all.empty:
         tooltip = f"{r.get('route','')} - {r.get('pr','')} ({r.get('cote','')})"
         popup_html = build_pr_popup_html(r)  # déjà défini dans ton code
         iframe = IFrame(html=popup_html, width=320, height=210)
-        popup = folium.Popup(iframe, max_width=320)
-
+        popup = folium.Popup(iframe, max_width=POPUP_MAX_WIDTH)
         # marqueur principal
         folium.CircleMarker(
             location=(float(r["lat"]), float(r["lon"])),
@@ -1218,6 +1349,7 @@ for idx, c in enumerate(st.session_state["circles"]):
     ).add_to(m)
 
 
+
 col_map, col_actions = st.columns([4, 1])
 with col_map:
     # Conserver un key stable évite les remounts (optionnel mais recommandé)
@@ -1252,7 +1384,8 @@ with col_actions:
     # Liste et gestion des sous-segments
     subsegs = st.session_state["subsegments"].get(seg_key, [])
     if subsegs:
-        if st.button("🗑️ Supprimer tous les sous-segments"):
+        if st.button("🗑️ Supprimer tout",
+                    help="Supprimer tous les sous-segments"):
             st.session_state["subsegments"][seg_key] = []
             # On ne réinitialise pas les compteurs pour conserver l'historique de numérotation
             st.rerun()
@@ -1267,9 +1400,10 @@ with col_actions:
 
         # 🔑 un seul bouton "Ajouter", avec key unique (supprime le doublon plus bas)
         if st.button(
-            "➕ Ajouter comme sous-segment",
+            "➕ Ajouter segment",
             disabled=not can_add,
-            key=f"btn_add_subseg_{seg_key}"
+            key=f"btn_add_subseg_{seg_key}",
+            help="Ajouter comme sous-segment"
         ):
             # --- Choix de la ligne à ajouter ---
             if len(edited_wgs_list) == 1:
