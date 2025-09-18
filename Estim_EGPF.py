@@ -1336,7 +1336,7 @@ with col_actions:
             """, unsafe_allow_html=True)
 
 
-            # Éditeur des largeurs par sous-segment
+            # --- Éditeur des largeurs par sous-segment ---
             with st.expander(f"Modifier les largeurs pour {label}", expanded=False):
                 st.caption("Ces largeurs n'affectent que ce sous‑segment.")
                 cols = st.columns(3)
@@ -1351,21 +1351,29 @@ with col_actions:
                             key=f"w_{seg_key}_{idx}_{e}"
                         )
 
-                c1, c2, c3 = st.columns([1,1,2])
-                with c1:
-                    if st.button("↺ Reprendre les largeurs globales", key=f"copy_global_{seg_key}_{idx}"):
-                        it["widths"] = widths_applied.copy()
-                        st.rerun()
-                with c2:
-                    if st.button("↺ Réinitialiser (valeurs par défaut)", key=f"reset_defaults_{seg_key}_{idx}"):
-                        it["widths"] = {e: float(DEFAULT_WIDTHS.get(e, 0.0)) for e in ALL_ELEMENTS}
-                        st.rerun()
+                # --- Ligne de boutons "reset" centrée et horizontale ---
+                # 1) Colonnes externes pour le centrage (marges gauche/droite)
+                margin_left, center_block, margin_right = st.columns([1, 2, 1])
+                with center_block:
+                    # 2) Colonnes internes pour les 2 boutons (avec un petit espace au milieu)
+                    bcol1, spacer, bcol2 = st.columns([1, 0.15, 1])
 
+                    with bcol1:
+                        if st.button("↺", key=f"copy_global_{seg_key}_{idx}"):
+                            it["widths"] = widths_applied.copy()
+                            st.rerun()
+
+                    with bcol2:
+                        if st.button("↺", key=f"reset_defaults_{seg_key}_{idx}"):
+                            it["widths"] = {e: float(DEFAULT_WIDTHS.get(e, 0.0)) for e in ALL_ELEMENTS}
+                            st.rerun()
+
+            # Bouton supprimer (inchangé)
             if st.button(f"Supprimer #{idx+1}", key=f"del_{seg_key}_{idx}"):
                 to_delete = idx
 
-        if to_delete is not None:
-            st.session_state["subsegments"][seg_key].pop(to_delete)
+            if to_delete is not None:
+                st.session_state["subsegments"][seg_key].pop(to_delete)
             st.rerun()
 
 
