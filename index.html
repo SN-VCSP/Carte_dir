@@ -1,438 +1,730 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Atelier Maternelle • Compter 1–5 • Alphabet • Coloriage</title>
-<meta name="color-scheme" content="light">
-<style>
-  :root{
-    --bg:#FFFDF7;
-    --card:#FFFFFF;
-    --ink:#24313F;
-    --muted:#5A6B7B;
-    --accent:#FF7A59;
-    --accent-2:#5DD39E;
-    --accent-3:#6C8AE4;
-    --accent-4:#FFC857;
-    --ok:#34C759;
-    --bad:#FF3B30;
-    --shadow: 0 6px 20px rgba(0,0,0,.08);
-    --radius:16px;
-    --gap: clamp(10px, 2vw, 18px);
-  }
-  *{box-sizing:border-box}
-  html,body{height:100%}
-  body{
-    margin:0; background:linear-gradient(180deg, #FFFDF7, #FFF7EC);
-    color:var(--ink); font: 500 18px/1.4 system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
-  }
-  header{
-    position:sticky; top:0; z-index: 20; backdrop-filter: blur(6px);
-    background: rgba(255,253,247,.75); border-bottom:1px solid #f0e9da;
-  }
-  .bar{
-    max-width: 1200px; margin:auto; padding:12px var(--gap);
-    display:flex; align-items:center; gap: var(--gap); flex-wrap: wrap;
-  }
-  .title{font-weight:800; letter-spacing:.2px; display:flex; align-items:center; gap:10px}
-  .title .logo{width:38px; height:38px; border-radius:10px; display:grid; place-items:center;
-    background: conic-gradient(from 210deg, var(--accent), var(--accent-4), var(--accent-2), var(--accent-3), var(--accent));
-    color:white; font-weight:900; box-shadow: var(--shadow);
-  }
-  .grow{flex:1}
-  select, button{
-    font:inherit; padding:12px 16px; border-radius:12px; border:2px solid #e8e2d3; background:#fff;
-    cursor:pointer; transition:.15s transform ease, .2s box-shadow ease; box-shadow: var(--shadow);
-  }
-  button.primary{ background: var(--accent); color:white; border-color: transparent; }
-  button.ghost{ background: #fff; }
-  button:active{ transform: translateY(1px) }
-  main{ max-width: 1200px; margin: calc(var(--gap)*1.2) auto; padding: 0 var(--gap) var(--gap); }
-  .card{
-    background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
-    padding: clamp(14px, 3vw, 28px);
-  }
-  .grid{
-    display:grid; gap: var(--gap);
-    grid-template-columns: repeat(12, 1fr);
-  }
-  .col-12{ grid-column: span 12 }
-  .col-8 { grid-column: span 8 }
-  .col-4 { grid-column: span 4 }
-  @media (max-width: 900px){
-    .col-8, .col-4{ grid-column: span 12 }
-  }
-  .section{ display:none }
-  .section.active{ display:block; animation: fade .25s ease }
-  @keyframes fade{ from{opacity:0; transform: translateY(6px)} to{opacity:1; transform:none} }
-
-  /* COMPTER */
-  .count-area{
-    display:grid; place-items:center; gap:18px; min-height: 280px;
-  }
-  .objects{ display:flex; flex-wrap:wrap; gap:12px; justify-content:center}
-  .obj{
-    width: clamp(58px, 9vw, 78px); height: clamp(58px, 9vw, 78px);
-    border-radius: 16px; display:grid; place-items:center; font-size: clamp(28px, 6vw, 46px);
-    background: #fff; border:2px dashed #E8E2D3;
-  }
-  .choices{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap }
-  .num-btn{
-    width:64px; height:64px; border-radius:16px; font-size:22px; font-weight:800;
-    background:var(--accent-3); color:#fff; border:none;
-  }
-  .num-btn.alt{ background: var(--accent-2); color:#083B2B }
-
-  .feedback{ text-align:center; font-weight:800; min-height: 28px }
-  .good{ color: var(--ok) } .bad{ color: var(--bad) }
-
-  /* ALPHABET */
-  .alpha-top{ display:flex; gap: var(--gap); align-items:center; justify-content:center; flex-wrap:wrap }
-  .big-letter{
-    font-weight:900; font-size: clamp(72px, 14vw, 160px);
-    line-height:1; padding: 8px 22px; border-radius: 22px;
-    background: #fff; border: 3px solid #efeadc; box-shadow: var(--shadow);
-  }
-  .alpha-controls{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap }
-  .alpha-grid{
-    margin-top:18px; display:grid; grid-template-columns: repeat(6, minmax(40px, 1fr));
-    gap:10px; justify-items: center;
-  }
-  .alpha-cell{
-    width: clamp(46px, 10vw, 66px); height: clamp(46px, 10vw, 66px);
-    border-radius: 14px; display:grid; place-items:center; font-weight:800;
-    font-size: clamp(20px, 4.4vw, 28px); background:#fff; border:2px solid #e8e2d3; cursor:pointer;
-  }
-  .alpha-cell.mark{ outline:4px solid var(--accent-4) }
-
-  /* COLORIAGE */
-  .paint-wrap{ display:grid; gap: var(--gap); grid-template-columns: 280px 1fr }
-  @media (max-width: 900px){ .paint-wrap{ grid-template-columns: 1fr } }
-  .palette{ display:flex; gap:10px; flex-wrap:wrap; align-content:start }
-  .swatch{
-    width:44px; height:44px; border-radius: 12px; border:2px solid #e8e2d3; cursor:pointer; box-shadow: var(--shadow)
-  }
-  .swatch.selected{ outline: 4px solid #3333 }
-  .canvas{
-    background: #fff; border-radius: 16px; padding: 16px; border:2px solid #efe8d8; box-shadow: var(--shadow);
-    display:grid; place-items:center;
-  }
-  svg{ max-width: 100%; height: auto }
-  .paintable{ cursor:pointer; transition: .15s opacity ease }
-  .paintable:hover{ opacity:.9 }
-
-  /* UTIL */
-  .toolbar{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top: 10px }
-  .sr{ position:absolute; left:-9999px }
-  .confetti{ position:fixed; inset:0; pointer-events:none; overflow:hidden; z-index:30 }
-  .piece{ position:absolute; width:10px; height:18px; border-radius:4px; opacity:.9; mix-blend-mode:multiply }
-  @media print{
-    header, .toolbar{ display:none !important }
-    body{ background:#fff }
-    .card{ box-shadow:none; border:1px solid #ddd }
-  }
-</style>
+  <meta charset="utf-8" />
+  <title>Poubelles Copro — Google Sheets</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+  <style>
+    :root{
+      --bg1:#1e1b4b; --bg2:#0ea5e9;
+      --card:#111827; --text:#f8fafc; --muted:#cbd5e1;
+      --chip:#1f2937; --ring:#334155;
+      --accent:#22c55e; --accent2:#f59e0b; --accent3:#06b6d4;
+      --danger:#ef4444; --warn:#f59e0b;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif;background:linear-gradient(135deg,var(--bg1),#3b82f6,var(--bg2));color:var(--text)}
+    header{
+      position:sticky;top:0;z-index:50;
+      background:linear-gradient(90deg,#7c3aed,#06b6d4);
+      padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.2);
+      display:flex;gap:12px;align-items:center;justify-content:space-between
+    }
+    .brand{display:flex;align-items:center;gap:10px}
+    .logo{width:38px;height:38px;border-radius:12px;background:conic-gradient(#22c55e,#f59e0b,#06b6d4,#ef4444,#22c55e);box-shadow:0 6px 24px rgba(0,0,0,.3)}
+    .brand h1{margin:0;font-size:18px}
+    .today{font-size:12px;color:#e2e8f0}
+    nav{display:flex;gap:8px}
+    nav button{flex:1;padding:10px 12px;border:1px solid rgba(255,255,255,.2);border-radius:12px;background:rgba(0,0,0,.25);color:var(--text);font-weight:700}
+    nav button.active{border-color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.2) inset}
+    main{padding:16px}
+    .card{background:rgba(17,24,39,.75);backdrop-filter:blur(6px);border:1px solid var(--ring);border-radius:16px;padding:14px;margin-bottom:16px}
+    .hero{display:flex;gap:12px;align-items:center}
+    .hero-avatar{width:62px;height:62px;border-radius:50%;background:radial-gradient(circle,#22c55e,#06b6d4,#f59e0b);box-shadow:0 10px 30px rgba(0,0,0,.35)}
+    .hero h2{margin:0 0 4px 0;font-size:18px}
+    .hero .sub{color:var(--muted);font-size:12px}
+    .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+    .chip{background:var(--chip);border:1px solid var(--ring);border-radius:999px;padding:6px 10px;font-size:12px}
+    .section-title{font-weight:800;margin:0 0 8px 0;font-size:14px;color:#e2e8f0}
+    .big-action{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
+    .big-btn{width:100%;padding:14px;border-radius:16px;border:1px solid var(--ring);
+      background:linear-gradient(180deg,#1f2937 0%, #0f172a 100%);color:var(--text);font-weight:800;font-size:16px}
+    .big-btn.done{background:linear-gradient(180deg,#22c55e 0%, #16a34a 100%);border-color:#16a34a;color:#04210f}
+    .progress{width:100%;height:10px;border-radius:999px;background:#0b1225;border:1px solid var(--ring);overflow:hidden}
+    .progress > span{display:block;height:100%;background:linear-gradient(90deg,#22c55e,#06b6d4)}
+    .task-row{display:flex;align-items:center;justify-content:space-between;background:#0b1225;border:1px solid var(--ring);border-radius:12px;padding:10px;margin:6px 0}
+    .task-row .name{font-weight:800}
+    .task-row .when{color:var(--muted);font-size:12px}
+    .task-row button{padding:8px 10px;border-radius:10px;border:1px solid var(--ring);background:#1f2937;color:var(--text);font-weight:700}
+    .task-row button.done{background:#16a34a;border-color:#16a34a;color:#052e13}
+    .task-row button.change{background:#f59e0b;border-color:#c2410c}
+    .task-row button.assign{background:#06b6d4;border-color:#0e7490}
+    .alert{margin-top:8px;padding:10px;border-radius:12px;border:1px solid var(--danger);color:#fecaca;background:#2b0b0b}
+    .lock{font-size:40px;line-height:1}
+    .kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .kpi{background:#0b1225;border:1px solid var(--ring);border-radius:12px;padding:10px}
+    .kpi h3{margin:0 0 6px 0;font-size:14px}
+    .kpi .val{font-size:22px;font-weight:800}
+    .legend{font-size:12px;color:var(--muted)}
+    .tabs{display:none}
+    .tabs.active{display:block}
+    .month-title{margin:12px 0 6px 0;font-weight:800;color:#cbd5e1}
+    .footer{padding:12px;color:#e2e8f0;font-size:12px;text-align:center}
+    textarea, select, input{width:100%;padding:8px;border-radius:10px;border:1px solid var(--ring);background:#0b1225;color:#var(--text)}
+    .row{display:flex;gap:8px}
+    .row > *{flex:1}
+    .badge{display:inline-block;padding:6px 10px;border-radius:999px;background:#1f2937;border:1px solid var(--ring);margin:4px 4px 0 0;font-size:12px}
+    @media (max-width: 600px) {
+      .kpi-grid { grid-template-columns: 1fr; }
+      .row > * { flex: none; width: 100%; }
+    }
+    .mini{font-size:12px;color:#cbd5e1}
+  </style>
 </head>
 <body>
   <header>
-    <div class="bar">
-      <div class="title">
-        <div class="logo" aria-hidden="true">🎈</div>
-        <div>Atelier Maternelle</div>
+    <div class="brand">
+      <div class="logo" aria-hidden="true"></div>
+      <div>
+        <h1>🚮 Poubelles Copro — Feuille Google</h1>
+        <div class="today" id="todayText">—</div>
       </div>
-      <div class="grow"></div>
-      <label for="sectionSel" class="sr">Choisir une activité</label>
-      <select id="sectionSel" title="Choisir une activité">
-        <option value="count">Compter 1–5</option>
-        <option value="alpha">Alphabet</option>
-        <option value="paint">Coloriage</option>
-      </select>
-      <button id="printBtn" class="ghost" title="Imprimer">🖨️ Imprimer</button>
     </div>
+    <nav>
+      <button id="tab-home" class="active" aria-label="Onglet Accueil">Accueil</button>
+      <button id="tab-actions" aria-label="Onglet Actions">Actions</button>
+      <button id="tab-planning" aria-label="Onglet Planning">Planning</button>
+      <button id="tab-kpis" aria-label="Onglet Performances">Performances</button>
+      <button id="tab-share" aria-label="Onglet Partage">Partage</button>
+    </nav>
   </header>
 
-  <main class="grid">
-    <section id="count" class="section active col-12 card" aria-labelledby="count-h">
-      <h2 id="count-h">Compter jusqu’à 5</h2>
-      <p>Regarde les objets et <strong>clique le bon nombre</strong>.</p>
-      <div class="count-area">
-        <div id="objects" class="objects" aria-label="Objets à compter"></div>
-        <div class="choices" role="group" aria-label="Choisir un nombre">
-          <button class="num-btn">1</button>
-          <button class="num-btn alt">2</button>
-          <button class="num-btn">3</button>
-          <button class="num-btn alt">4</button>
-          <button class="num-btn">5</button>
-        </div>
-        <div id="fbCount" class="feedback" aria-live="polite"></div>
-        <div class="toolbar">
-          <button id="newCount" class="primary">Nouvelle question</button>
-          <button id="resetCount" class="ghost">Réinitialiser</button>
-        </div>
-      </div>
-    </section>
-
-    <section id="alpha" class="section col-12 card" aria-labelledby="alpha-h">
-      <h2 id="alpha-h">Alphabet</h2>
-      <div class="alpha-top">
-        <div id="bigLetter" class="big-letter" aria-live="polite" aria-atomic="true">A</div>
-      </div>
-
-      <div class="alpha-controls toolbar">
-        <button id="prevL" class="ghost" title="Lettre précédente">⬅️</button>
-        <button id="sayL" class="primary" title="Entendre la lettre">🔊 Écouter</button>
-        <button id="nextL" class="ghost" title="Lettre suivante">➡️</button>
-        <select id="alphaRange" title="Plage de lettres">
-          <option value="A-E">A–E</option>
-          <option value="A-J" selected>A–J</option>
-          <option value="A-Z">A–Z</option>
-        </select>
-      </div>
-
-      <h3 style="margin-top:16px">Je retrouve la lettre demandée</h3>
-      <p>Consigne : clique sur <strong>toutes</strong> les <span id="askLetter">A</span>.</p>
-      <div id="alphaGrid" class="alpha-grid" aria-label="Grille de lettres"></div>
-      <div id="fbAlpha" class="feedback" aria-live="polite"></div>
-      <div class="toolbar">
-        <button id="newAlpha" class="primary">Nouvelle grille</button>
-        <button id="resetAlpha" class="ghost">Réinitialiser</button>
-      </div>
-    </section>
-
-    <section id="paint" class="section col-12 card" aria-labelledby="paint-h">
-      <h2 id="paint-h">Coloriage</h2>
-      <div class="paint-wrap">
+  <main>
+    <!-- Accueil -->
+    <section id="home" class="tabs active">
+      <div class="card hero">
+        <div class="hero-avatar" aria-hidden="true"></div>
         <div>
-          <p>Choisis une couleur puis <strong>clique</strong> une partie du dessin.</p>
-          <div id="palette" class="palette" role="group" aria-label="Palette de couleurs"></div>
-          <div class="toolbar">
-            <button id="clearPaint" class="ghost">Effacer</button>
-          </div>
+          <h2 id="heroWho">Responsable actuel: —</h2>
+          <div class="sub" id="heroTask">Prochaine tâche: —</div>
+          <div class="chips" id="heroChips"></div>
         </div>
-        <div class="canvas">
-          <!-- Fleur simple en SVG -->
-          <svg id="flower" viewBox="0 0 300 300" role="img" aria-label="Fleur à colorier">
-            <defs>
-              <radialGradient id="g" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stop-color="#fff7d6"/>
-                <stop offset="100%" stop-color="#ffd14d"/>
-              </radialGradient>
-            </defs>
-            <!-- Cœur -->
-            <circle class="paintable" data-default="url(#g)" cx="150" cy="150" r="28" fill="url(#g)" stroke="#E7C14A" stroke-width="3"/>
-            <!-- Pétales -->
-            <ellipse class="paintable" cx="150" cy="80" rx="28" ry="46" fill="#FEE4E2" stroke="#F4A6A0" stroke-width="3"/>
-            <ellipse class="paintable" cx="210" cy="110" rx="28" ry="46" transform="rotate(30 210 110)" fill="#E7F0FF" stroke="#ABC3F7" stroke-width="3"/>
-            <ellipse class="paintable" cx="90" cy="110" rx="28" ry="46" transform="rotate(-30 90 110)" fill="#EAF9F0" stroke="#94D9BA" stroke-width="3"/>
-            <ellipse class="paintable" cx="150" cy="220" rx="28" ry="46" fill="#FFF1D6" stroke="#F7CA86" stroke-width="3"/>
-            <ellipse class="paintable" cx="220" cy="180" rx="28" ry="46" transform="rotate(55 220 180)" fill="#F3E6FF" stroke="#CDB7F8" stroke-width="3"/>
-            <ellipse class="paintable" cx="80" cy="180" rx="28" ry="46" transform="rotate(-55 80 180)" fill="#EFFFF3" stroke="#A0E3B4" stroke-width="3"/>
-            <!-- Tige + feuilles -->
-            <rect class="paintable" x="145" y="190" width="10" height="80" rx="5" fill="#A7E495" stroke="#6FBC66" stroke-width="3"/>
-            <ellipse class="paintable" cx="118" cy="215" rx="28" ry="14" fill="#D5F5D3" stroke="#95D08E" stroke-width="3"/>
-            <ellipse class="paintable" cx="180" cy="235" rx="28" ry="14" fill="#D5F5D3" stroke="#95D08E" stroke-width="3"/>
-            <!-- Herbe -->
-            <rect class="paintable" x="0" y="270" width="300" height="30" fill="#E2F8D3" />
-          </svg>
+      </div>
+
+      <div class="card">
+        <p class="section-title">Règles du jeu</p>
+        <div class="chips">
+          <span class="chip">Tour de rôle: 2 fois/semaine</span>
+          <span class="chip">Semaine 1 du mois: Sofienn</span>
+          <span class="chip">Mardi soir & Vendredi soir: sortie</span>
+          <span class="chip">Mercredi matin & Samedi matin: rentrée</span>
+          <span class="chip">Semaine 5: libre (non attribuée)</span>
         </div>
+        <div class="mini">Stockage: Google Sheets (via Apps Script). <span id="syncState">déconnecté</span></div>
+      </div>
+
+      <div class="card" id="homeAlert" style="display:none">
+        <div class="lock">⛓️🔒</div>
+        <div><strong>Attention:</strong> 5 manquements (ou plus) détectés. Accès à la poubelle “verrouillé” pour le·s concerné·s. Mettez-vous à jour !</div>
+      </div>
+    </section>
+
+    <!-- Actions -->
+    <section id="actions" class="tabs">
+      <div class="card big-action">
+        <p class="section-title">Bouton central</p>
+        <button id="bigActionBtn" class="big-btn">Marquer la tâche du moment comme accomplie</button>
+        <div class="progress"><span id="weekProgress" style="width:0%"></span></div>
+        <div class="legend" id="weekLegend">Progression de la semaine: 0/4</div>
+      </div>
+
+      <div class="card">
+        <p class="section-title">Tâches de la semaine</p>
+        <div id="currentWeekTasks"></div>
+      </div>
+    </section>
+
+    <!-- Planning -->
+    <section id="planning" class="tabs">
+      <div class="card">
+        <p class="section-title">Planning 12 mois</p>
+        <div id="planContainer"></div>
+      </div>
+    </section>
+
+    <!-- Performances -->
+    <section id="kpis" class="tabs">
+      <div class="card">
+        <p class="section-title">Indicateurs & classement</p>
+        <div class="kpi-grid" id="kpiGrid"></div>
+        <div id="badgesBox" style="margin-top:10px"></div>
+      </div>
+      <div class="card">
+        <p class="section-title">Alertes & discipline</p>
+        <div id="disciplineBox"></div>
+      </div>
+    </section>
+
+    <!-- Partage en temps réel -->
+    <section id="share" class="tabs">
+      <div class="card">
+        <p class="section-title">Connexion live (P2P)</p>
+        <p class="legend">La synchro principale passe par Google Sheets. Le P2P reste dispo pour des partages rapides.</p>
+        <div class="row">
+          <button id="btnCreateOffer">Créer une offre</button>
+          <button id="btnAcceptOffer">Accepter une offre</button>
+        </div>
+        <div style="margin-top:10px">
+          <p class="section-title">Votre offre / réponse</p>
+          <textarea id="sdpLocal" rows="6" placeholder="Offre ou réponse générée ici"></textarea>
+        </div>
+        <div style="margin-top:10px">
+          <p class="section-title">Collez l'offre/réponse reçue</p>
+          <textarea id="sdpRemote" rows="6" placeholder="Collez ici l'offre (ou la réponse) reçue"></textarea>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button id="btnCopyLocal">Copier</button>
+          <button id="btnSetRemote">Utiliser le code reçu</button>
+        </div>
+        <div style="margin-top:10px">
+          <span class="chip" id="liveStatus">Statut: non connecté</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <p class="section-title">Sauvegarde/partage alternatif</p>
+        <div class="row">
+          <button id="btnExport">Exporter JSON</button>
+          <button id="btnImport">Importer JSON</button>
+        </div>
+        <textarea id="jsonBox" rows="6" placeholder="Collez ou récupérez ici le JSON"></textarea>
       </div>
     </section>
   </main>
 
-  <div id="confetti" class="confetti" aria-hidden="true"></div>
+  <div class="footer">Données en Google Sheets (1 cellule JSON) + P2P (WebRTC). Rotation: Sofienn, Vanessa, Anthony, Marc. Semaine 5 libre.</div>
 
 <script>
-/* ---------- Utilitaires ---------- */
-const $ = (sel, root=document) => root.querySelector(sel);
-const $$ = (sel, root=document) => [...root.querySelectorAll(sel)];
-const say = (text) => {
-  try{
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = "fr-FR";
-    speechSynthesis.cancel();
-    speechSynthesis.speak(u);
-  }catch(e){}
+/* ==========================
+   CONFIG — À RENSEIGNER
+   ========================== */
+// 1) Déployez le script Google Apps Script fourni (Code.gs) en "Application Web"
+// 2) Collez ici l’URL de l’application web:
+const API_BASE = "https://script.google.com/macros/s/AKfycbx9QL3i9DQP6pI2GyVwPchdSEjkEDHWYSvtJGoNpWALZ9w88bE2WYwaMNIVmSbS_9NzJg/exec"; // ex: https://script.google.com/macros/s/AKfycb.../exec
+
+/* === Données de base === */
+const PEOPLE = ["Sofienn","Vanessa","Anthony","Marc"];
+const TASKS = [
+  {key:"TUE_PM", icon:"🗑️", label:"Sortir la poubelle", whenLabel:"Mardi soir", dow:2, time:"18:00"},
+  {key:"WED_AM", icon:"🏠", label:"Rentrer la poubelle", whenLabel:"Mercredi matin", dow:3, time:"08:00"},
+  {key:"FRI_PM", icon:"🗑️", label:"Sortir la poubelle", whenLabel:"Vendredi soir", dow:5, time:"18:00"},
+  {key:"SAT_AM", icon:"🏠", label:"Rentrer la poubelle", whenLabel:"Samedi matin", dow:6, time:"08:00"},
+];
+
+/* === Persistance distante (Google Sheets via Apps Script) === */
+const REMOTE = {
+  async load(){
+    if(!API_BASE || API_BASE.startsWith("<<")) throw new Error("URL API non configurée");
+    const url = API_BASE + "?action=state";
+    const r = await fetch(url, {method:"GET"});
+    if(!r.ok) throw new Error("Échec GET");
+    const data = await r.json();
+    return data && data.plan ? data : null;
+  },
+  async save(db){
+    const r = await fetch(API_BASE, {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ action:"state", payload: db })
+    });
+    if(!r.ok) throw new Error("Échec POST");
+    const out = await r.json();
+    return out;
+  }
 };
-function confettiBurst(colors=["#FF7A59","#5DD39E","#6C8AE4","#FFC857","#FF89C0"]){
-  const box = $("#confetti"); box.innerHTML="";
-  const N = 40;
-  for(let i=0;i<N;i++){
-    const p = document.createElement("div");
-    p.className="piece";
-    p.style.background = colors[i%colors.length];
-    p.style.left = Math.random()*100+"%";
-    p.style.top = "-10px";
-    const tx = (Math.random()*100-50)+"vw";
-    const ty = (80+Math.random()*20)+"vh";
-    const rot = (Math.random()*720-360);
-    const dur = 700 + Math.random()*900;
-    p.animate([
-      { transform:`translate(0,0) rotate(0deg)`, opacity:1 },
-      { transform:`translate(${tx}, ${ty}) rotate(${rot}deg)`, opacity:0.9 }
-    ], { duration: dur, easing:"cubic-bezier(.2,.8,.2,1)" });
-    box.appendChild(p);
-  }
-  setTimeout(()=> box.innerHTML="", 1200);
+
+/* === Fallback local (utile hors connexion) === */
+const LOCAL = {
+  load(){ try { return JSON.parse(localStorage.getItem("poubelle_copro_store_remote")||"{}"); } catch(e){ return {}; } },
+  save(data){ localStorage.setItem("poubelle_copro_store_remote", JSON.stringify(data)); }
+};
+let DB = LOCAL.load();
+if(!DB.meta){ DB.meta = {generatedAt: null, lastSweep: null}; }
+if(!DB.plan){ DB.plan = []; }
+if(!DB.done){ DB.done = {}; }
+if(!DB.missed){ DB.missed = {}; }
+if(!DB.stats){ DB.stats = {completed:{}, missed:{}, points:{}, streak:{}}; }
+if(!DB.changes){ DB.changes = {}; }
+if(!DB.share){ DB.share = {version:1}; }
+
+/* === Date helpers === */
+function pad(n){ return n<10 ? "0"+n : ""+n; }
+function fmtDate(d){ return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}`; }
+function fmtDateTime(d){ return `${fmtDate(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+function startOfDay(d){ const x=new Date(d); x.setHours(0,0,0,0); return x; }
+function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
+function setTime(d,hhmm){ const x=new Date(d); const [hh,mm]=hhmm.split(":").map(Number); x.setHours(hh||0,mm||0,0,0); return x; }
+function firstMondayOfMonth(year, monthIndex){
+  const d = new Date(year, monthIndex, 1);
+  const day = d.getDay();
+  const offset = (day === 0) ? 1 : (day === 1 ? 0 : (8 - day) % 7);
+  d.setDate(d.getDate() + offset);
+  return startOfDay(d);
 }
 
-/* ---------- Navigation ---------- */
-const sectionSel = $("#sectionSel");
-const sections = $$(".section");
-sectionSel.addEventListener("change", ()=>{
-  sections.forEach(s=> s.classList.remove("active"));
-  $("#"+sectionSel.value).classList.add("active");
-});
-$("#printBtn").addEventListener("click", ()=> window.print());
-
-/* ---------- COMPTER 1–5 ---------- */
-const objects = $("#objects");
-const fbCount = $("#fbCount");
-const emojis = ["⭐","🍎","🟢","🧡","🎈","🧩","🐣","🌼","🍪","🫐"];
-function newCounting(){
-  fbCount.textContent = "";
-  const n = 1 + Math.floor(Math.random()*5);
-  objects.dataset.answer = n;
-  objects.innerHTML="";
-  const pick = emojis[Math.floor(Math.random()*emojis.length)];
-  for(let i=0;i<n;i++){
-    const d = document.createElement("div");
-    d.className="obj";
-    d.textContent = pick;
-    objects.appendChild(d);
-  }
-}
-newCounting();
-$$(".num-btn").forEach(b=>{
-  b.addEventListener("click", ()=>{
-    const val = parseInt(b.textContent,10);
-    const ans = parseInt(objects.dataset.answer,10);
-    if(val===ans){
-      fbCount.innerHTML = "<span class='good'>Bravo !</span>";
-      say("Bravo !");
-      confettiBurst();
-      setTimeout(newCounting, 700);
-    }else{
-      fbCount.innerHTML = "<span class='bad'>Essaie encore</span>";
-      say("Essaie encore");
+/* === Génération du planning 12 mois === */
+function generateYearPlan(){
+  const now = new Date();
+  const startYear = now.getFullYear();
+  const startMonth = now.getMonth();
+  const plan = [];
+  for(let m=0;m<12;m++){
+    const year = startMonth+m >= 12 ? startYear+1 : startYear;
+    const monthIdx = (startMonth+m) % 12;
+    const monthStartMonday = firstMondayOfMonth(year, monthIdx);
+    const weeks = [];
+    for(let w=0; w<5; w++){
+      const weekStart = addDays(monthStartMonday, 7*w);
+      if(weekStart.getMonth() !== monthIdx && w>0) break;
+      const assigned = (w === 4) ? null : (w === 0 ? PEOPLE[0] : PEOPLE[(w % PEOPLE.length)]);
+      const tasks = TASKS.map(t=>{
+        const delta = (t.dow + 7 - 1) % 7;
+        const d = addDays(weekStart, delta);
+        const dt = setTime(d, t.time);
+        const id = `Y${year}M${monthIdx+1}W${w+1}_${t.key}`;
+        return { id, person: assigned, label: t.label, icon: t.icon, whenLabel: t.whenLabel, date: dt.toISOString(), y: year, m: monthIdx+1, w: w+1, key: t.key };
+      });
+      weeks.push({year, monthIdx, w: w+1, assigned, weekStart, tasks});
     }
-  });
-});
-$("#newCount").addEventListener("click", newCounting);
-$("#resetCount").addEventListener("click", ()=>{
-  newCounting();
-  fbCount.textContent="";
-});
-
-/* ---------- ALPHABET ---------- */
-const alphaRangeSel = $("#alphaRange");
-const bigLetter = $("#bigLetter");
-const alphaGrid = $("#alphaGrid");
-const fbAlpha = $("#fbAlpha");
-const askLetterSpan = $("#askLetter");
-let letters = [];
-let idx = 0;
-function setRange(){
-  const v = alphaRangeSel.value;
-  if(v==="A-E") letters = "ABCDE".split("");
-  else if(v==="A-J") letters = "ABCDEFGHIJ".split("");
-  else letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
-  idx = 0;
-  updateBigLetter();
-  newAlphaGrid();
-}
-function updateBigLetter(){
-  bigLetter.textContent = letters[idx];
-}
-$("#prevL").addEventListener("click", ()=>{
-  idx = (idx-1+letters.length)%letters.length;
-  updateBigLetter(); say(letters[idx]);
-});
-$("#nextL").addEventListener("click", ()=>{
-  idx = (idx+1)%letters.length;
-  updateBigLetter(); say(letters[idx]);
-});
-$("#sayL").addEventListener("click", ()=> say(letters[idx]));
-alphaRangeSel.addEventListener("change", setRange);
-
-function newAlphaGrid(){
-  fbAlpha.textContent="";
-  // lettre à chercher (maj/min aléatoire)
-  const L = letters[Math.floor(Math.random()*letters.length)];
-  askLetterSpan.textContent = L;
-  const pool = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  const cells = [];
-  for(let i=0;i<30;i++){
-    const pick = Math.random()<0.28 ? L : pool[Math.floor(Math.random()*26)];
-    const upper = Math.random()<0.5;
-    cells.push( upper ? pick.toUpperCase() : pick.toLowerCase() );
+    plan.push({year, monthIdx, weeks});
   }
-  alphaGrid.innerHTML = "";
-  let remaining = cells.filter(c=> c.toUpperCase()===L).length;
-  cells.forEach(ch=>{
-    const c = document.createElement("button");
-    c.className = "alpha-cell";
-    c.setAttribute("aria-pressed","false");
-    c.textContent = ch;
-    c.addEventListener("click", ()=>{
-      if(c.classList.contains("mark")) return;
-      if(ch.toUpperCase()===L){
-        c.classList.add("mark");
-        c.setAttribute("aria-pressed","true");
-        remaining--;
-        if(remaining<=0){
-          fbAlpha.innerHTML = "<span class='good'>Super ! Mission lettres réussie 🎉</span>";
-          say("Super !");
-          confettiBurst();
-          setTimeout(newAlphaGrid, 900);
+  DB.plan = plan;
+  DB.meta.generatedAt = new Date().toISOString();
+  LOCAL.save(DB);
+}
+
+/* === Gamification === */
+function addPoints(person, pts){
+  if(!person) return;
+  DB.stats.points[person] = (DB.stats.points[person]||0) + pts;
+  DB.stats.streak[person] = (DB.stats.streak[person]||0) + 1;
+}
+function breakStreak(person){
+  if(!person) return;
+  DB.stats.streak[person] = 0;
+}
+function computeBadges(person){
+  const pts = DB.stats.points[person]||0;
+  const st = DB.stats.streak[person]||0;
+  const badges = [];
+  if(pts >= 10) badges.push("🏅 Bronze");
+  if(pts >= 25) badges.push("🥈 Argent");
+  if(pts >= 50) badges.push("🥇 Or");
+  if(st >= 4) badges.push("🔥 Série 4+");
+  if((DB.stats.missed[person]||0) === 0 && pts>=8) badges.push("🛡️ Parfait");
+  return badges;
+}
+
+/* === Tâches courantes === */
+function findCurrentTask(){
+  const now = new Date();
+  let nearest = null;
+  DB.plan.forEach(month=>{
+    month.weeks.forEach(w=>{
+      w.tasks.forEach(t=>{
+        const dt = new Date(t.date);
+        const diff = dt - now;
+        if(diff >= -6*60*60*1000){
+          if(!nearest || diff < (new Date(nearest.date)-now)) nearest = t;
         }
-      }else{
-        fbAlpha.innerHTML = "<span class='bad'>Oups, ce n’est pas la bonne lettre</span>";
-        say("Oups, ce n’est pas la bonne lettre");
-      }
+      });
     });
-    alphaGrid.appendChild(c);
   });
+  return nearest;
 }
-$("#newAlpha").addEventListener("click", newAlphaGrid);
-$("#resetAlpha").addEventListener("click", ()=>{
-  setRange(); fbAlpha.textContent="";
-});
-setRange();
-
-/* ---------- COLORIAGE ---------- */
-const PALETTE = ["#FF7A59","#FFC857","#5DD39E","#6C8AE4","#FF89C0","#8BD3DD","#E7E9EB","#A1E4A3","#F6D6D6","#B4A0FF"];
-const palette = $("#palette");
-let currentColor = PALETTE[0];
-function renderPalette(){
-  palette.innerHTML="";
-  PALETTE.forEach((col,i)=>{
-    const d = document.createElement("button");
-    d.className = "swatch"+(i===0?" selected":"");
-    d.style.background = col;
-    d.title = col;
-    d.addEventListener("click", ()=>{
-      $$(".swatch").forEach(s=> s.classList.remove("selected"));
-      d.classList.add("selected");
-      currentColor = col;
+function currentWeekBlock(){
+  const now = new Date();
+  let found = null;
+  DB.plan.forEach(month=>{
+    month.weeks.forEach(week=>{
+      const start = startOfDay(week.weekStart);
+      const end = addDays(start,7);
+      if(now >= start && now < end){ found = week; }
     });
-    palette.appendChild(d);
   });
+  return found;
 }
-renderPalette();
 
-$("#flower").addEventListener("click", (e)=>{
-  const t = e.target;
-  if(t.classList.contains("paintable")){
-    t.setAttribute("fill", currentColor);
+/* === Marquage & manquements === */
+async function markDone(taskId, person){
+  if(DB.done[taskId] || DB.missed[taskId]) return;
+  DB.done[taskId] = true;
+  if(person){
+    DB.stats.completed[person] = (DB.stats.completed[person]||0) + 1;
+    addPoints(person, 2);
   }
-});
-$("#clearPaint").addEventListener("click", ()=>{
-  $$("#flower .paintable").forEach(p=>{
-    const def = p.getAttribute("data-default");
-    p.setAttribute("fill", def || "#FFFFFF");
+  LOCAL.save(DB);
+  broadcastDB();
+  renderAll();
+  await remoteSaveSafely();
+}
+
+function sweepMissed(){
+  const now = new Date();
+  const last = DB.meta.lastSweep ? new Date(DB.meta.lastSweep) : new Date(0);
+  DB.plan.forEach(month=>{
+    month.weeks.forEach(week=>{
+      week.tasks.forEach(t=>{
+        const dt = new Date(t.date);
+        if(dt < now && dt > last && !DB.done[t.id] && !DB.missed[t.id]){
+          DB.missed[t.id] = true;
+          if(t.person){
+            DB.stats.missed[t.person] = (DB.stats.missed[t.person]||0) + 1;
+            breakStreak(t.person);
+          }
+        }
+      });
+    });
   });
-});
+  DB.meta.lastSweep = now.toISOString();
+  LOCAL.save(DB);
+}
+
+async function requestChange(task, toPerson){
+  if(!toPerson) return;
+  const prev = task.person;
+  DB.changes[task.id] = {from: prev || "Libre", to: toPerson};
+  task.person = toPerson;
+  LOCAL.save(DB);
+  broadcastDB();
+  renderAll();
+  await remoteSaveSafely();
+}
+
+/* === Sync helpers === */
+function setSyncState(txt){
+  document.getElementById("syncState").textContent = "• " + txt;
+}
+async function remoteSaveSafely(){
+  try{
+    setSyncState("sauvegarde…");
+    await REMOTE.save(DB);
+    setSyncState("à jour");
+  }catch(e){
+    setSyncState("hors-ligne (sauvegarde locale)");
+  }
+}
+
+/* === UI === */
+function setActiveTab(tab){
+  document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"));
+  document.querySelectorAll(".tabs").forEach(s=>s.classList.remove("active"));
+  document.getElementById(`tab-${tab}`).classList.add("active");
+  document.getElementById(tab).classList.add("active");
+}
+
+function renderHome(){
+  const todayTxt = document.getElementById("todayText");
+  const now = new Date();
+  const days = ["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"];
+  todayTxt.textContent = `${days[now.getDay()]} ${fmtDate(now)} • ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+  const t = findCurrentTask();
+  const whoEl = document.getElementById("heroWho");
+  const taskEl = document.getElementById("heroTask");
+  const chipsEl = document.getElementById("heroChips");
+  chipsEl.innerHTML = "";
+  if(t){
+    const who = t.person || "Libre (tous)";
+    whoEl.textContent = `Responsable actuel: ${who}`;
+    taskEl.textContent = `Prochaine tâche: ${t.icon} ${t.label} — ${t.whenLabel} (${fmtDate(new Date(t.date))})`;
+    const weekChip = document.createElement("span"); weekChip.className="chip"; weekChip.textContent = `Semaine ${t.w}`;
+    const statusChip = document.createElement("span"); statusChip.className="chip"; statusChip.textContent = DB.done[t.id] ? "État: accompli" : "État: à faire";
+    chipsEl.appendChild(weekChip); chipsEl.appendChild(statusChip);
+  } else {
+    whoEl.textContent = "Responsable actuel: —";
+    taskEl.textContent = "Aucune tâche à proximité.";
+  }
+
+  const offenders = PEOPLE.filter(p=> (DB.stats.missed[p]||0) >= 5 );
+  const alertBox = document.getElementById("homeAlert");
+  alertBox.style.display = offenders.length>0 ? "block" : "none";
+}
+
+function renderActions(){
+  const btn = document.getElementById("bigActionBtn");
+  const currentWeek = currentWeekBlock();
+  const tasksBox = document.getElementById("currentWeekTasks");
+  tasksBox.innerHTML = "";
+  let doneCount = 0;
+
+  if(currentWeek){
+    currentWeek.tasks.forEach(t=>{
+      const row = document.createElement("div");
+      row.className = "task-row";
+      const left = document.createElement("div");
+      left.innerHTML = `<div class="name">${t.icon} ${t.label}</div><div class="when">${t.whenLabel} • ${fmtDate(new Date(t.date))} • ${t.person ? t.person : "Libre"}</div>`;
+      const right = document.createElement("div");
+      const bDone = document.createElement("button");
+      bDone.textContent = DB.done[t.id] ? "Accomplie" : "Valider";
+      bDone.className = DB.done[t.id] ? "done" : "";
+      bDone.addEventListener("click", ()=> markDone(t.id, t.person));
+      const bChange = document.createElement("button");
+      bChange.textContent = "Changer";
+      bChange.className = "change";
+      bChange.addEventListener("click", ()=>{
+        const to = prompt("Qui prend la tâche ? " + PEOPLE.join(", "));
+        if(to){ requestChange(t, to); }
+      });
+      right.appendChild(bDone);
+      right.appendChild(bChange);
+      row.appendChild(left); row.appendChild(right);
+      tasksBox.appendChild(row);
+      if(DB.done[t.id]) doneCount++;
+    });
+  }
+
+  const nearest = currentWeek ? currentWeek.tasks.find(x=>!DB.done[x.id]) || currentWeek.tasks[0] : null;
+  if(nearest){
+    btn.textContent = DB.done[nearest.id] ? "Déjà accompli" : `Valider: ${nearest.icon} ${nearest.label} (${nearest.whenLabel})`;
+    btn.className = DB.done[nearest.id] ? "big-btn done" : "big-btn";
+    btn.onclick = ()=> markDone(nearest.id, nearest.person);
+  } else {
+    btn.textContent = "Rien à valider";
+    btn.className = "big-btn";
+    btn.onclick = null;
+  }
+
+  const prog = document.getElementById("weekProgress");
+  const legend = document.getElementById("weekLegend");
+  const total = currentWeek ? currentWeek.tasks.length : 4;
+  const pct = Math.round((doneCount/total)*100);
+  prog.style.width = pct+"%";
+  legend.textContent = `Progression de la semaine: ${doneCount}/${total}`;
+}
+
+function renderPlanning(){
+  const container = document.getElementById("planContainer");
+  container.innerHTML = "";
+  DB.plan.forEach(month=>{
+    const monthName = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"][month.monthIdx];
+    const title = document.createElement("div");
+    title.className="month-title";
+    title.textContent = `${monthName} ${month.year}`;
+    container.appendChild(title);
+
+    month.weeks.forEach(week=>{
+      const wrap = document.createElement("div");
+      wrap.className="week";
+      const head = document.createElement("div");
+      head.className="week-head";
+      const who = week.assigned ? week.assigned : "Libre (tous)";
+      head.innerHTML = `<div><strong>Semaine ${week.w}</strong> • du ${fmtDate(week.weekStart)} au ${fmtDate(addDays(week.weekStart,6))}</div><div class="chip">${who}</div>`;
+      wrap.appendChild(head);
+
+      week.tasks.forEach(t=>{
+        const row = document.createElement("div");
+        row.className="task-row";
+        const left = document.createElement("div");
+        const changeInfo = DB.changes[t.id] ? ` • échangée: ${DB.changes[t.id].from} ➜ ${DB.changes[t.id].to}` : "";
+        left.innerHTML = `<div class="name">${t.icon} ${t.label}</div><div class="when">${t.whenLabel} • ${fmtDate(new Date(t.date))} • ${t.person ? t.person : "Libre"}${changeInfo}</div>`;
+        const right = document.createElement("div");
+        const b = document.createElement("button");
+        b.textContent = DB.done[t.id] ? "Accomplie" : "Marquer";
+        b.className = DB.done[t.id] ? "done" : "";
+        b.addEventListener("click", ()=> markDone(t.id, t.person));
+        const bAssign = document.createElement("button");
+        bAssign.textContent = "Changer";
+        bAssign.className = "assign";
+        bAssign.addEventListener("click", ()=>{
+          const to = prompt("Qui prend la tâche ? " + PEOPLE.join(", "));
+          if(to){ requestChange(t, to); }
+        });
+        right.appendChild(b); right.appendChild(bAssign);
+        row.appendChild(left); row.appendChild(right);
+        wrap.appendChild(row);
+      });
+
+      container.appendChild(wrap);
+    });
+  });
+}
+
+function renderKPIs(){
+  const grid = document.getElementById("kpiGrid");
+  grid.innerHTML = "";
+  const leaderboard = [];
+  PEOPLE.forEach(name=>{
+    const done = (DB.stats.completed[name]||0);
+    const miss = (DB.stats.missed[name]||0);
+    const pts = (DB.stats.points[name]||0);
+    leaderboard.push({name, pts});
+    const kpi = document.createElement("div");
+    kpi.className="kpi";
+    kpi.innerHTML = `<h3>${name}</h3>
+      <div class="val">${done} ✓</div><div class="legend">Tâches accomplies</div>
+      <div style="margin-top:6px;color:${miss>=5?'#fecaca': 'var(--muted)'}">${miss} ✗ manquées</div>
+      <div style="margin-top:6px"><strong>Points:</strong> ${pts}</div>
+      <div style="margin-top:6px"><strong>Série:</strong> ${DB.stats.streak[name]||0}</div>`;
+    grid.appendChild(kpi);
+  });
+  leaderboard.sort((a,b)=> b.pts - a.pts);
+  const badgesBox = document.getElementById("badgesBox");
+  badgesBox.innerHTML = "<p class='section-title'>Badges</p>";
+  PEOPLE.forEach(name=>{
+    const badges = computeBadges(name);
+    const wrap = document.createElement("div");
+    wrap.innerHTML = `<div class="badge">${name}</div> ${badges.map(b=>`<span class="badge">${b}</span>`).join(" ") || "<span class='badge'>—</span>"}`;
+    badgesBox.appendChild(wrap);
+  });
+
+  const discipline = document.getElementById("disciplineBox");
+  const offenders = PEOPLE.filter(p=>(DB.stats.missed[p]||0)>=5);
+  if(offenders.length){
+    discipline.innerHTML = `
+      <div class="alert">
+        <div class="lock">⛓️🔒</div>
+        <strong>Alerte:</strong> ${offenders.join(", ")} — 5 manquements ou plus.
+        Validez vos tâches pour “déverrouiller” l’accès.
+      </div>`;
+  } else {
+    discipline.innerHTML = `<div class="chip">Aucune alerte. Continuez ainsi 💪</div>`;
+  }
+}
+
+function renderAll(){
+  renderHome();
+  renderActions();
+  renderPlanning();
+  renderKPIs();
+}
+
+async function bootstrap(){
+  if(!DB.meta.generatedAt){ generateYearPlan(); }
+  sweepMissed();
+  try{
+    setSyncState("chargement…");
+    const remote = await REMOTE.load();
+    if(remote){
+      DB = remote;
+      LOCAL.save(DB);
+      setSyncState("à jour");
+    }else{
+      // Première initialisation distante
+      await remoteSaveSafely();
+    }
+  }catch(e){
+    setSyncState("hors-ligne (local)");
+  }
+  document.getElementById("tab-home").onclick = ()=> setActiveTab("home");
+  document.getElementById("tab-actions").onclick = ()=> setActiveTab("actions");
+  document.getElementById("tab-planning").onclick = ()=> setActiveTab("planning");
+  document.getElementById("tab-kpis").onclick = ()=> setActiveTab("kpis");
+  document.getElementById("tab-share").onclick = ()=> setActiveTab("share");
+  renderAll();
+}
+bootstrap();
+setInterval(()=>{ renderHome(); }, 60*1000);
+
+/* === Export / Import JSON === */
+document.getElementById("btnExport").onclick = ()=>{
+  document.getElementById("jsonBox").value = JSON.stringify(DB, null, 2);
+};
+document.getElementById("btnImport").onclick = async ()=>{
+  try{
+    const obj = JSON.parse(document.getElementById("jsonBox").value || "{}");
+    if(obj && obj.plan){
+      DB = obj;
+      LOCAL.save(DB);
+      renderAll();
+      broadcastDB();
+      await remoteSaveSafely();
+      alert("Import réussi !");
+    } else {
+      alert("JSON invalide (plan manquant).");
+    }
+  }catch(e){ alert("JSON invalide."); }
+};
+
+/* === WebRTC DataChannel (optionnel) === */
+let pc = null, dc = null, isCreator = false;
+
+function resetRTC(){
+  pc = new RTCPeerConnection({iceServers:[{urls:["stun:stun.l.google.com:19302","stun:global.stun.twilio.com:3478"]}]});
+  dc = pc.createDataChannel("poubelles");
+  dc.onopen = ()=> { setLiveStatus("connecté"); sendFullState(); };
+  dc.onclose = ()=> setLiveStatus("non connecté");
+  dc.onmessage = (ev)=> {
+    try{
+      const msg = JSON.parse(ev.data);
+      if(msg.type === "STATE"){
+        DB = msg.payload;
+        LOCAL.save(DB);
+        renderAll();
+        remoteSaveSafely();
+      }
+    }catch(e){}
+  };
+  pc.onicecandidate = (ev)=>{
+    if(ev.candidate) return;
+    document.getElementById("sdpLocal").value = JSON.stringify(pc.localDescription);
+  };
+  pc.ondatachannel = (ev)=> {
+    dc = ev.channel;
+    dc.onopen = ()=> { setLiveStatus("connecté"); sendFullState(); };
+    dc.onmessage = (ev)=> {
+      try{
+        const msg = JSON.parse(ev.data);
+        if(msg.type === "STATE"){
+          DB = msg.payload;
+          LOCAL.save(DB);
+          renderAll();
+          remoteSaveSafely();
+        }
+      }catch(e){}
+    };
+  };
+  pc.oniceconnectionstatechange = () => {
+    if (pc.iceConnectionState === "failed") {
+      setLiveStatus("échec de connexion");
+      resetRTC();
+    }
+  };
+}
+
+function setLiveStatus(txt){
+  const el = document.getElementById("liveStatus");
+  el.textContent = "Statut: " + txt;
+}
+
+function sendFullState(){
+  if(dc && dc.readyState === "open"){
+    dc.send(JSON.stringify({type:"STATE", payload:DB}));
+  }
+}
+function broadcastDB(){ sendFullState(); }
+
+document.getElementById("btnCreateOffer").onclick = async ()=>{
+  isCreator = true;
+  resetRTC();
+  const offer = await pc.createOffer({offerToReceiveAudio:false,offerToReceiveVideo:false});
+  await pc.setLocalDescription(offer);
+  setLiveStatus("offre créée — copiez et envoyez");
+};
+document.getElementById("btnAcceptOffer").onclick = ()=>{
+  isCreator = false;
+  resetRTC();
+  setLiveStatus("prêt à accepter une offre");
+};
+document.getElementById("btnCopyLocal").onclick = ()=>{
+  const txt = document.getElementById("sdpLocal").value;
+  navigator.clipboard.writeText(txt).then(()=> alert("Copié !"));
+};
+document.getElementById("btnSetRemote").onclick = async ()=>{
+  try{
+    const remote = JSON.parse(document.getElementById("sdpRemote").value);
+    await pc.setRemoteDescription(remote);
+    if(remote.type === "offer"){
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      setLiveStatus("réponse créée — copiez et renvoyez");
+    } else {
+      setLiveStatus("tentative de connexion…");
+    }
+  }catch(e){
+    alert("Code invalide (SDP).");
+  }
+};
 </script>
 </body>
 </html>
