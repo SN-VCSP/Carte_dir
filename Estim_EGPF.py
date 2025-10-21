@@ -46,15 +46,18 @@ else:
 
 
 DEFAULT_WIDTHS: Dict[str, float] = {
-    "BAU": 1.0,
+    "BAU": 2.5,
     "BDG": 1.0,
     "VL": 3.5,
     "VR": 3.5,
     "VM": 3.5,
     "VS": 3.5,
-    "BRET": 3.5,  # bretelle côté droit par défaut si applicable
+    "BRET": 3.5,
+    "Accès": 5.0,           # Corps d’accès
+    "AccoD": 0.30,    # Accotement droit
+    "AccoG": 0.30,    # Accotement gauche
 }
-ALL_ELEMENTS = ["BAU", "BDG", "VL", "VR", "VM", "VS", "BRET"]
+ALL_ELEMENTS = ["BAU", "BDG", "VL", "VR", "VM", "VS", "BRET", "Accès", "AccoD", "AccoG"]
 
 # Profils (comptages "équivalents" par élément)
 PROFILES: Dict[str, Dict[str, float]] = {
@@ -64,6 +67,7 @@ PROFILES: Dict[str, Dict[str, float]] = {
     "3_voies_bretelle": {"BDG": 1, "VR": 1, "VM": 1, "VL": 1, "BRET": 1, "BAU": 1},
     "4_voies": {"BDG": 1, "VR": 1, "VM": 1, "VL": 1, "VS": 1, "BAU": 1},
     "4_voies_bretelle": {"BDG": 1, "VR": 1, "VM": 1, "VL": 1, "VS": 1, "BRET": 1, "BAU": 1},
+    "Accès": {"Accès": 1, "AccoD": 1, "AccoG": 1},
 }
 
 # Couleurs associées
@@ -74,6 +78,7 @@ PROFILE_COLORS: Dict[str, str] = {
     "3_voies_bretelle": "#9467bd",
     "4_voies": "#d62728",
     "4_voies_bretelle": "#8c564b",
+    "Accès": "#17becf",
 }
 
 
@@ -90,6 +95,7 @@ PR_STYLE = {
     ('non', 'non'): dict(stroke='#95a5a6', fill='#FFFFFF',
                          label='Fait = Non, Ausculté = Non'),
 }
+
 
 def make_pr_points_legend(df: pd.DataFrame) -> str:
     """
@@ -595,10 +601,74 @@ def parse_drawn_polylines(map_data: Optional[Dict[str, Any]], prefer_last: bool 
 
     return _dedup_polylines(polys)
 
+def parse_drawn_polygons(map_data: Optional[Dict[str, Any]]) -> List[List[Tuple[float, float]]]:
+    """
+    Extrait les polygones Leaflet.Draw depuis st_folium (Polygon / MultiPolygon).
+    Retourne une liste d’anneaux (lat,lon) pour les contours extérieurs.
+    """
+    if not map_data:
+        return []
+    polys: List[List[Tuple[float, float]]] = []
 
-# >>> MODIF : ajouter un paramètre show_percentages pour masquer les % en édition
+    def _add_from_geom(geom: Dict[str, Any]):
+        if not geom:
+            return
+        gtype = geom.get("type")
+        coords = geom.get("coordinates", [])
+        if gtype == "Polygon" and coords:
+            ring = coords[0]
+            pts = [(lat, lon) for lon, lat in ring]
+            if len(pts) >= 3:
+                polys.append(pts)
+        elif gtype == "MultiPolygon":
+            for poly in coords:
+                if poly:
+                    ring = poly[0]
+                    pts = [(lat, lon) for lon, lat in ring]
+                    if len(pts) >= 3:
+                        polys.append(pts)
+        elif gtype == "FeatureCollection":
+            for f in (geom.get("features") or []):
+                _add_from_geom((f or {}).get("geometry") or {})
+
+    last = (map_data or {}).get("last_active_drawing") or {}
+    drawings = (map_data or {}).get("all_drawings") or []
+    if last.get("geometry"):
+        _add_from_geom(last["geometry"])
+    for feat in drawings:
+        _add_from_geom((feat or {}).get("geometry") or {})
+
+    # Déduplication (arrondi)
+    def _h(poly, prec=6):
+        return "\n".join(f"{round(lat,prec)},{round(lon,prec)}" for lat,lon in poly)
+    out, seen = [], set()
+    for p in polys:
+        if len(p) < 3:
+            continue
+        h = _h(p)
+        if h not in seen:
+            seen.add(h); out.append(p)
+    return out
+
+def polygon_area_m2_from_wgs(ring_wgs: List[Tuple[float, float]] , TO_L93=TO_L93) -> float:
+    """
+    Aire planimétrique (m²) d’un polygone (lat,lon) en projetant en Lambert‑93 (shoelace).
+    """
+    if not ring_wgs or len(ring_wgs) < 3:
+        return 0.0
+    xs, ys = [], []
+    for lat, lon in ring_wgs:
+        x, y = TO_L93.transform(lon, lat)
+        xs.append(float(x)); ys.append(float(y))
+    # fermer l’anneau si besoin
+    if xs[0] != xs[-1] or ys[0] != ys[-1]:
+        xs.append(xs[0]); ys.append(ys[0])
+    area = 0.0
+    for i in range(len(xs)-1):
+        area += xs[i]*ys[i+1] - xs[i+1]*ys[i]
+    return abs(area) * 0.5
+
 def make_legend_html(selected: List[str], percentages: List[int], show_percentages: bool = True) -> str:
-    """Légende HTML dynamique des profils avec couleurs et pourcentages."""
     rows = []
     sel_pct = {name: pct for name, pct in zip(selected, percentages)}
     for key, color in PROFILE_COLORS.items():
@@ -614,24 +684,15 @@ def make_legend_html(selected: List[str], percentages: List[int], show_percentag
 </div>
 """
         )
-    html = f"""
+    return f"""
 <div id="maplegend" class="maplegend"
- style="position: absolute; z-index:9999; border:2px solid #bbb;
- background-color: rgba(255, 255, 255, 0.9);
- border-radius:6px; padding:10px; font-size:12px; right: 20px; bottom: 20px;">
-  <div class="legend-title" style="font-weight:700; margin-bottom:6px;">
-    Profils & couleurs
-  </div>
-  <div class="legend-scale">
-    {''.join(rows)}
-  </div>
-  <div style="margin-top:6px;color:#666;">
-    *En gras : profils actuellement sélectionnés pour le prochain dessin.
-  </div>
+ style="position:absolute;z-index:9999;border:2px solid #bbb;
+ background-color:rgba(255,255,255,0.9);border-radius:6px;padding:10px;font-size:12px;right:20px;bottom:20px;">
+  <div class="legend-title" style="font-weight:700;margin-bottom:6px;">Profils & couleurs</div>
+  <div class="legend-scale">{''.join(rows)}</div>
+  <div style="margin-top:6px;color:#666;">*En gras : profils sélectionnés.</div>
 </div>
 """
-    return html
-
 
 
 # =========================
@@ -678,12 +739,12 @@ except Exception as e:
 
 
 # =========================
-# Filtres globaux (Gestionnaire, depPr, Route)
+# Filtres globaux (Gestionnaire, depPr, Route) + Sélection du segment (sidebar)
 # =========================
 with st.sidebar:
     st.header("Filtres")
 
-    # Normalisation souple des éventuels synonymes de colonnes
+    # Normalisation souple de colonnes éventuelles
     _rename_map_soft = {}
     for alt in ["depPr", "DEPARTEMENT", "departement", "Dept", "dept"]:
         if alt in df.columns and "departement" not in df.columns:
@@ -696,6 +757,7 @@ with st.sidebar:
     if _rename_map_soft:
         df = df.rename(columns=_rename_map_soft)
 
+    # Filtres Gestionnaire & Département
     cons_sel = []
     if "Gestionnaire" in df.columns:
         cons_opts = sorted(pd.Series(df["Gestionnaire"].dropna().astype(str).unique()).tolist())
@@ -712,37 +774,38 @@ with st.sidebar:
     if dep_sel and "departement" in _df_f.columns:
         _df_f = _df_f[_df_f["departement"].astype(str).isin(dep_sel)]
 
+    # Filtre routes (multi) pour réduire la liste proposée ensuite
     route_opts = sorted(pd.Series(_df_f["route"].dropna().astype(str).unique()).tolist())
-    route_sel = st.multiselect("Routes", options=route_opts, default=[])
-
-    if route_sel:
-        _df_f = _df_f[_df_f["route"].astype(str).isin(route_sel)]
+    route_filter = st.multiselect("Routes (filtre)", options=route_opts, default=[])
+    if route_filter:
+        _df_f = _df_f[_df_f["route"].astype(str).isin(route_filter)]
 
     st.caption(f"📉 Lignes après filtres : {len(_df_f):,}".replace(',', ' '))
 
+    # --- Sélection du segment (déplacée à gauche)
+    st.markdown("---")
+    with st.expander("🧭 Sélection du segment", expanded=True):
+        if _df_f.empty:
+            st.info("Aucune donnée après filtres (Gestionnaire/Département/Routes).")
+        else:
+            route = st.selectbox("Route", sorted(_df_f["route"].astype(str).unique()))
+            cotes_dispo = _df_f.loc[_df_f["route"] == route, "cote"].astype(str).unique().tolist()
+            cote = st.selectbox("Côté", sorted(cotes_dispo))
+
+            subset = _df_f[( _df_f["route"] == route) & (_df_f["cote"] == cote)].sort_values("pr").reset_index(drop=True)
+            prs = sorted(subset["pr"].dropna().unique().tolist())
+            pr_start = st.selectbox("PR début", prs, index=0 if prs else None)
+            prs_after = [p for p in prs if p > pr_start] if prs else []
+            pr_end = st.selectbox("PR fin", prs_after, index=0 if prs_after else None)
+
+# Appliquer les filtres au DF global pour la suite
 df = _df_f
 
 if df.empty:
     st.warning("Aucune donnée après filtres (Gestionnaire/depPr/route).")
     st.stop()
 
-# ---- Sélection du segment
-st.markdown("---")
-st.markdown("#### Sélection du segment")
-colA, colB, colC = st.columns(3)
-with colA:
-    route = st.selectbox("Route", sorted(df["route"].unique()))
-with colB:
-    cotes_dispo = df.loc[df["route"] == route, "cote"].unique().tolist()
-    cote = st.selectbox("Côté", sorted(cotes_dispo))
-subset = df[(df["route"] == route) & (df["cote"] == cote)].sort_values("pr").reset_index(drop=True)
-with colC:
-    prs = subset["pr"].dropna().unique().tolist()
-    prs = sorted(prs)
-    pr_start = st.selectbox("PR début", prs, index=0 if prs else None)
-    prs_after = [p for p in prs if p > pr_start] if prs else []
-    pr_end = st.selectbox("PR fin", prs_after, index=0 if prs_after else None)
-
+# Validation de la sélection + calculs de base (identiques à avant)
 sel = subset[subset["pr"].isin([pr_start, pr_end])].sort_values("pr")
 if len(sel) != 2:
     st.warning("Sélectionne deux PR valides (début < fin).")
@@ -750,159 +813,295 @@ if len(sel) != 2:
 
 pr1 = sel.iloc[0]
 pr2 = sel.iloc[1]
+
 coords_l93 = [(float(pr1["x"]), float(pr1["y"])), (float(pr2["x"]), float(pr2["y"]))]
 coords_wgs = l93_to_wgs(coords_l93)
 seg_key = build_segment_key(route, cote, float(pr_start), float(pr_end))
 
-# ---- Paramètres distance
-st.markdown("---")
-st.markdown("#### Distance et courbure")
-colD, colE, colF, colF2 = st.columns([1.2, 1, 1, 1.2])
-with colD:
-    # >>> MODIF : ajout "PR × 1000 (fixe)"
-    dist_method = st.selectbox(
-        "Méthode de distance",
-        ["Segment édité", "Chainage", "Droite PR→PR", "PR × 1000 (fixe)", "Fixe"],
-        help=(
-            "Segment édité = distance de la/les polyligne(s) dessinée(s) sur la carte. "
-            "Chainage = delta de chainage_m (ou 1000 m par PR si absent). "
-            "Droite PR→PR = distance droite entre les 2 PR. "
-            "PR × 1000 (fixe) = 1000 m par PR (forcé), quel que soit chainage_m. "
-            "Fixe = valeur imposée manuellement."
-        ),
-    )
-# >>> MODIF : valeur par défaut dynamique pour 'Fixe' = 1000 × ΔPR
+# --- Distance & courbure (masqué par défaut, accessible via bouton)
+# État par défaut en session
+ss = st.session_state
+ss.setdefault("dist_panel_open", False)
+ss.setdefault("filter_panel_open", False)  # NOUVEAU
+ss.setdefault("circle_panel_open", False)  # NOUVEAU
+ss.setdefault("dist_method", "Segment édité")
+ss.setdefault("curvature_factor", 1.00)
+ss.setdefault("map_height", 750)
+ss.setdefault("zoom_init", 14)
+ss.setdefault("legend_panel_open", False)
+ss.setdefault("circles_panel_open", False)
+# État par défaut en session (ajouter ces 2 lignes)
+ss.setdefault("quick_profile_open", {})    # {seg_key: bool}
+ss.setdefault("quick_profile_choice", {})  # {seg_key: "3_voies" ...}
+ss.setdefault("quick_profile_apply", {})  # {seg_key: bool}
+ss.setdefault("profile_panel_open", False)  # nouveau panneau "Profils & éléments"
+ss.setdefault("profile_ready", {})  # {seg_key: bool} — prêt à ajouter un sous-segment ?
+# Valeur par défaut pour la distance fixe (utilisée au premier rendu du champ)
 default_fixed = pr_delta_m(pr_start, pr_end) or 1000.0
-with colE:
-    fixed_m = st.number_input("Distance fixe (m)", value=float(default_fixed), step=50.0, min_value=0.0)
-with colF:
-    curvature_factor = st.number_input("Facteur de courbure", value=1.00, step=0.01, min_value=0.90, max_value=1.20)
-with colF2:
-    map_height = st.slider("Hauteur carte (px)", min_value=500, max_value=1000, value=750, step=10)
-    zoom_init = st.slider("Zoom initial", min_value=10, max_value=18, value=14, step=1)
 
-# ---- Profils et éléments (AVANT la carte pour fixer la couleur du dessin)
-st.markdown("---")
-st.markdown("#### Profils et éléments à inclure")
-colG, colH = st.columns([1.1, 1])
-
-with colG:
-    # >>> MODIF : UI conditionnelle. En 'Segment édité' -> 1 profil, pas de %
-    if dist_method == "Segment édité":
-        profile_simple = st.selectbox(
-            "Profil du sous-segment (mode édition simple — pas de pourcentages)",
-            list(PROFILES.keys()),
-            index=0,
-            help="En édition, on saisit un seul profil par ligne pour aller plus vite."
-        )
-        profiles_selected = [profile_simple]
-        percents: List[int] = [100]
-        st.caption("Les pourcentages sont masqués en mode 'Segment édité'.")
-    else:
-        profiles_selected = st.multiselect(
-            "Profils à appliquer (pour le prochain dessin ou le segment global)",
-            list(PROFILES.keys()),
-            default=["2_voies"],
-            help="Tu peux mixer plusieurs profils via des pourcentages (les poids sont normalisés).",
-        )
-        percents: List[int] = []
-        for name in profiles_selected:
-            perc = st.slider(
-                f"Part du profil {name.replace('_', ' ')} (%)",
-                0, 100, 100 if len(profiles_selected) == 1 else 0, step=5
-            )
-            percents.append(perc)
-
-    profile_mix = merge_profile_mix(profiles_selected, percents)
-    if not profile_mix:
-        st.warning("Sélectionne au moins un profil avec une part > 0%.")
-
-dom_name = dominant_profile_name(profiles_selected, percents)
-seg_color = PROFILE_COLORS.get(dom_name, "#ff7f50")  # couleur appliquée aux nouvelles lignes dessinées
-
-with colH:
-    preset = st.radio("Préréglages d’inclusion", ["Voies", "Tout", "Personnalisé"], index=1, horizontal=True)
-    if preset == "Voies":
-        included_elements = ["VL", "VR", "VM", "VS"]
-        included_elements = [e for e in included_elements if e in ALL_ELEMENTS]
-    elif preset == "Tout":
-        included_elements = ALL_ELEMENTS.copy()
-    else:
-        included_elements = st.multiselect("Éléments inclus", ALL_ELEMENTS, default=["BDG", "VL", "VR", "VM", "BAU", "BRET"])
-
-# ---- Largeurs (avec overrides)
-st.markdown("---")
-with st.expander("⚙️ Largeurs par élément (m) et surcharges par tronçon", expanded=False):
-    widths = {
-        e: st.number_input(f"{e}", value=float(DEFAULT_WIDTHS.get(e, 0.0)), step=0.1, min_value=0.0)
-        for e in ALL_ELEMENTS
+# ─────────────────────────────────────────────────────────────
+# Barre d'actions — 3 boutons en ligne + style compact
+# ─────────────────────────────────────────────────────────────
+st.markdown(
+    """
+    <style>
+    /* Groupe compact : réduit la hauteur et le padding des st.button */
+    .compact-buttons .stButton > button {
+        padding: 6px 10px;
+        min-height: 0;
+        line-height: 1.1;
+        font-size: 13px;
+        border-radius: 6px;
     }
-    widths_applied = apply_overrides(widths, overrides, route, cote, float(pr_start), float(pr_end))
-    if overrides is not None:
-        if widths_applied != widths:
-            st.info("Des surcharges 'overrides' ont été appliquées à ce tronçon.")
-        else:
-            st.caption("Aucune surcharge 'overrides' correspondante pour ce tronçon.")
-    else:
-        # pas d'overrides : on applique les largeurs saisies
-        widths_applied = widths
+    /* Espace horizontal réduit entre colonnes */
+    .compact-buttons [data-testid="column"] { gap: 0.25rem; }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
+with st.container():
+    # 4 colonnes étroites pour aligner les boutons horizontalement
+    c1, c2, c3, c4 = st.columns([1, 1, 1, 1], gap="small")
+    st.markdown('<div class="compact-buttons">', unsafe_allow_html=True)
 
+    with c1:
+        if st.button(
+            "⚙️ Distance & courbure",
+            help="Afficher/masquer le réglage de la méthode de distance, du facteur de courbure et des paramètres d'affichage de la carte",
+            use_container_width=True,
+            key="btn_dist_curv"
+        ):
+            ss["dist_panel_open"] = not ss["dist_panel_open"]
+
+    with c2:
+        if st.button(
+            "🗂️ Filtrage & légende",
+            help="Afficher/masquer les filtres PR (Fait/Ausculte/A_refaire) et le bloc légende",
+            use_container_width=True,
+            key="btn_filter_legend"
+        ):
+            ss["legend_panel_open"] = not ss["legend_panel_open"]
+
+    with c3:
+        if st.button(
+            "⭕ Cercles & annotations",
+            help="Afficher/masquer l'outil d'ajout/suppression des cercles d’annotation",
+            use_container_width=True,
+            key="btn_circles_ann"
+        ):
+            ss["circles_panel_open"] = not ss["circles_panel_open"]
+
+    # 👇 Nouveau bouton
+    with c4:
+        if st.button(
+            "🧩 Profils & éléments",
+            help="Afficher/masquer la section 'Profils & éléments à inclure' (et Largeurs)",
+            use_container_width=True,
+            key="btn_profiles_panel"
+        ):
+            ss["profile_panel_open"] = not ss["profile_panel_open"]
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Panneau repliable (identique aux options existantes, mais caché par défaut)
+if ss["dist_panel_open"]:
+    with st.expander("⚙️ Distance & courbure", expanded=True):
+        colD, colE, colF, colF2 = st.columns([1.2, 1, 1, 1.2])
+        with colD:
+            st.selectbox(
+                "Méthode de distance",
+                ["Segment édité", "Chainage", "Droite PR→PR", "PR × 1000 (fixe)", "Fixe"],
+                key="dist_method",
+                help=(
+                    "Segment édité = distance des polylignes dessinées sur la carte. "
+                    "Chainage = delta de chainage_m (ou 1000 m/PR si absent). "
+                    "Droite PR→PR = distance droite entre les 2 PR. "
+                    "PR × 1000 (fixe) = 1000 m par PR (forcé). "
+                    "Fixe = valeur imposée manuellement."
+                ),
+            )
+        with colE:
+            st.number_input("Distance fixe (m)", value=float(default_fixed), step=50.0, min_value=0.0, key="fixed_m")
+        with colF:
+            st.number_input("Facteur de courbure", value=float(ss.get("curvature_factor", 1.00)), step=0.01, min_value=0.90, max_value=1.20, key="curvature_factor")
+        with colF2:
+            st.slider("Hauteur carte (px)", min_value=500, max_value=1000, value=int(ss.get("map_height", 750)), step=10, key="map_height")
+            st.slider("Zoom initial", min_value=10, max_value=22, value=int(ss.get("zoom_init", 14)), step=1, key="zoom_init")
+
+# Variables locales pour la suite du script (comme avant)
+dist_method = ss["dist_method"]
+fixed_m = float(ss.get("fixed_m", default_fixed))
+curvature_factor = float(ss["curvature_factor"])
+map_height = int(ss["map_height"])
+zoom_init = int(ss["zoom_init"])
 
 
 # ─────────────────────────────────────────────────────────────
-# Couche DIRMED — Filtres d'affichage (PATCH aligné légende)
+# Profils & éléments (piloté par le bouton "🧩 Profils & éléments")
 # ─────────────────────────────────────────────────────────────
 st.markdown("---")
-st.markdown("#### Filtrage -Légende")
 
-# 1) UI : filtres sur les combinaisons Fait/Ausculte + option A_refaire
+if ss["profile_panel_open"]:
+    with st.expander("🧩 Profils & éléments à inclure", expanded=True):
+        st.markdown("#### Profils et éléments à inclure")
+
+        colG, colH = st.columns([1.1, 1])
+        with colG:
+            # Mode édition simple : 1 seul profil, pas de pourcentages
+            if dist_method == "Segment édité":
+                if ss.get("quick_profile_choice", {}).get(seg_key):
+                    st.session_state["profile_simple_select"] = ss["quick_profile_choice"][seg_key]
+
+                profile_simple = st.selectbox(
+                    "Profil du sous-segment (mode édition simple — pas de pourcentages)",
+                    list(PROFILES.keys()),
+                    index=0,
+                    key="profile_simple_select",
+                    help="En édition, on saisit un seul profil par ligne pour aller plus vite."
+                )
+                profiles_selected = [profile_simple]
+                percents = [100]
+                st.caption("Les pourcentages sont masqués en mode 'Segment édité'.")
+            else:
+                profiles_selected = st.multiselect(
+                    "Profils à appliquer (pour le prochain dessin ou le segment global)",
+                    list(PROFILES.keys()),
+                    default=["2_voies"],
+                    help="Tu peux mixer plusieurs profils via des pourcentages (les poids sont normalisés).",
+                )
+                percents = []
+                for name in profiles_selected:
+                    perc = st.slider(
+                        f"Part du profil {name.replace('_', ' ')} (%)",
+                        0, 100, 100 if len(profiles_selected) == 1 else 0, step=5
+                    )
+                    percents.append(perc)
+
+            profile_mix = merge_profile_mix(profiles_selected, percents)
+            if not profile_mix:
+                st.warning("Sélectionne au moins un profil avec une part > 0%.")
+
+        dom_name = dominant_profile_name(profiles_selected, percents)
+        seg_color = PROFILE_COLORS.get(dom_name, "#ff7f50")
+
+        with colH:
+            preset = st.radio("Préréglages d’inclusion", ["Voies", "Tout", "Personnalisé"], index=1, horizontal=True)
+            if preset == "Voies":
+                included_elements = [e for e in ["VL", "VR", "VM", "VS"] if e in ALL_ELEMENTS]
+            elif preset == "Tout":
+                included_elements = ALL_ELEMENTS.copy()
+            else:
+                included_elements = st.multiselect("Éléments inclus", ALL_ELEMENTS, default=["BDG", "VL", "VR", "VM", "BAU", "BRET"])
+
+        # Regrouper "Largeurs" sous ce même panneau
+        st.markdown("---")
+        with st.expander("⚙️ Largeurs par élément (m) et surcharges par tronçon", expanded=False):
+            widths = {
+                e: st.number_input(f"{e}", value=float(DEFAULT_WIDTHS.get(e, 0.0)), step=0.1, min_value=0.0)
+                for e in ALL_ELEMENTS
+            }
+            widths_applied = apply_overrides(widths, overrides, route, cote, float(pr_start), float(pr_end))
+            if overrides is not None:
+                if widths_applied != widths:
+                    st.info("Des surcharges 'overrides' ont été appliquées à ce tronçon.")
+                else:
+                    st.caption("Aucune surcharge 'overrides' correspondante pour ce tronçon.")
+            else:
+                widths_applied = widths
+
+        # ⇢ Persistance pour réutilisation quand le panneau est fermé
+        ss["profiles_selected"] = profiles_selected
+        ss["percents"] = percents
+        ss["included_elements"] = included_elements
+        ss["widths_applied"] = widths_applied
+        ss["dom_name"] = dom_name
+        ss["seg_color"] = seg_color
+
+else:
+    # Panneau masqué : on réutilise la dernière valeur connue ou des défauts sûrs
+    profiles_selected = ss.get("profiles_selected", ["2_voies"])
+    percents          = ss.get("percents", [100])
+    included_elements = ss.get("included_elements", ALL_ELEMENTS.copy())
+    widths_applied    = ss.get("widths_applied", DEFAULT_WIDTHS.copy())
+    dom_name          = ss.get("dom_name", dominant_profile_name(profiles_selected, percents))
+    seg_color         = ss.get("seg_color", PROFILE_COLORS.get(dom_name, "#ff7f50"))
+    profile_mix       = merge_profile_mix(profiles_selected, percents)
+
+
+# --- PATCH : appliquer le profil choisi via le mini-panneau, même panneau fermé ---
+if st.session_state.get("quick_profile_apply", {}).pop(seg_key, False):
+    chosen = st.session_state.get("quick_profile_choice", {}).get(seg_key)
+    if chosen:
+        # garder le selectbox cohérent si on ouvre le panneau plus tard
+        st.session_state["profile_simple_select"] = chosen
+
+        # forcer l'état courant du profil utilisé
+        profiles_selected = [chosen]
+        percents = [100]
+        dom_name = chosen
+        seg_color = PROFILE_COLORS.get(dom_name, "#ff7f50")
+        profile_mix = merge_profile_mix(profiles_selected, percents)
+
+        # persister pour la suite si le panneau est masqué
+        ss["profiles_selected"] = profiles_selected
+        ss["percents"] = percents
+        ss["dom_name"] = dom_name
+        ss["seg_color"] = seg_color
+
+        # refermer le mini-panneau
+        ss.setdefault("quick_profile_open", {})[seg_key] = False
+
+
+# NEW: valeurs par défaut quand le panneau est fermé
 filter_options = {
     "Fait Oui / Ausculté Oui": ("oui", "oui"),
     "Fait Oui / Ausculté Non": ("oui", "non"),
     "Fait Non / Ausculté Oui": ("non", "oui"),
     "Fait Non / Ausculté Non": ("non", "non"),
 }
-col_f1, col_f2 = st.columns([2, 1])
-with col_f1:
-    selected_filters = st.multiselect(
-        "Afficher les statuts PR",
-        options=list(filter_options.keys()),
-        default=list(filter_options.keys()),  # tout coché par défaut
-        help="Filtre combiné conforme à la légende PR (bordure = Fait, remplissage = Ausculté)."
-    )
-with col_f2:
-    show_arefaire_only = st.checkbox("Uniquement A_refaire = Oui", value=False)
+_selected_filters = list(filter_options.keys())   # par défaut : tout
+_show_arefaire_only = False                       # par défaut : non
 
-st.caption("Astuce : décoche une ou plusieurs combinaisons pour synchroniser carte et légende.")
+# NEW: si panneau ouvert -> afficher les contrôles et écraser les valeurs par défaut
+if ss["legend_panel_open"]:
+    with st.expander("🗂️ Filtrage & légende", expanded=True):
+        col_f1, col_f2 = st.columns([2, 1])
+        with col_f1:
+            _selected_filters = st.multiselect(
+                "Afficher les statuts PR",
+                options=list(filter_options.keys()),
+                default=list(filter_options.keys()),
+                help="Filtre combiné conforme à la légende PR (bordure = Fait, remplissage = Ausculté)."
+            )
+        with col_f2:
+            _show_arefaire_only = st.checkbox("Uniquement A_refaire = Oui", value=False)
 
-# 2) Préparer le DataFrame DIRMED à partir de df déjà chargé
+        st.caption("Astuce : décoche une ou plusieurs combinaisons pour synchroniser carte et légende.")
+
+# 2) Préparer le DataFrame DIRMED à partir de df déjà chargé (inchangé)
 dirmed_df_all = _prep_dirmed_df(df)
-
 if dirmed_df_all is not None:
-    # Normalisation 'oui'/'non' pour Fait/Ausculte (sécurise le filtrage)
+    # Normalisation 'oui'/'non'
     for c in ["Fait", "Ausculte"]:
         if c in dirmed_df_all.columns:
-            dirmed_df_all[c] = (
-                dirmed_df_all[c].astype(str).str.strip().str.lower()
-            )
+            dirmed_df_all[c] = dirmed_df_all[c].astype(str).str.strip().str.lower()
         else:
             st.info("ℹ️ La couche DIRMED est inactive : colonnes manquantes (Fait, Ausculte, structure).")
             dirmed_df_all = dirmed_df_all.iloc[0:0]
 
     # 3) Appliquer le filtre par combinaisons
-    if selected_filters:
-        allowed_pairs = set(filter_options[k] for k in selected_filters)
+    if _selected_filters:
+        allowed_pairs = set(filter_options[k] for k in _selected_filters)
         mask = dirmed_df_all.apply(
             lambda r: (r.get("Fait", ""), r.get("Ausculte", "")) in allowed_pairs, axis=1
         )
         dirmed_df_all = dirmed_df_all[mask]
     else:
-        # rien sélectionné -> rien à afficher
         dirmed_df_all = dirmed_df_all.iloc[0:0]
 
     # 4) (Option) Restreindre à A_refaire = Oui
-    if show_arefaire_only:
+    if _show_arefaire_only:
         if "A_refaire" in dirmed_df_all.columns:
             dirmed_df_all = dirmed_df_all[
                 dirmed_df_all["A_refaire"].astype(str).str.strip().str.lower().eq("oui")
@@ -912,26 +1111,68 @@ if dirmed_df_all is not None:
 else:
     st.info("ℹ️ La couche DIRMED est inactive : colonnes manquantes (Fait, Ausculte, structure) ou coordonnées invalides.")
 
-
-
-
-# =========================
-# Carte interactive — ESRI Satellite + dessin coloré
-# =========================
+# -------------------------
+# Carte IGN par défaut
+# -------------------------
 st.markdown("---")
-st.markdown("#### Carte (ESRI Satellite) et édition du tracé")
-map_center = midpoint_wgs(coords_wgs)
+st.markdown("#### Carte IGN")
 
-# Important: désactiver la tuile par défaut et ajouter Esri Satellite
-m = folium.Map(location=map_center, zoom_start=int(zoom_init), control_scale=True, tiles=None)
+# Garde-fous sur center/zoom
+map_center = midpoint_wgs(coords_wgs)  # doit renvoyer (lat, lon)
+if not (isinstance(map_center, (list, tuple)) and len(map_center) == 2):
+    st.stop()  # ou lève une Exception explicite
+map_center = (float(map_center[0]), float(map_center[1]))
+
+try:
+    _zoom = 14 if zoom_init is None else int(zoom_init)
+except Exception:
+    _zoom = 14
+
+# Créer la map sans tuile par défaut
+m = folium.Map(location=map_center, zoom_start=_zoom, control_scale=True, tiles=None)
+
+# IGN - Orthophotos -> défaut
+folium.TileLayer(
+    tiles=(
+        "https://data.geopf.fr/wmts?"
+        "SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0"
+        "&LAYER=ORTHOIMAGERY.ORTHOPHOTOS"
+        "&STYLE=normal&FORMAT=image/jpeg&TILEMATRIXSET=PM"
+        "&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}"
+    ),
+    attr="IGN-F/Géoportail",
+    name="IGN Orthophotos",
+    overlay=False,
+    control=True,
+    show=True,          # 👈 affichée au chargement et après rerun
+    maxNativeZoom=19,
+    maxZoom=22
+).add_to(m)
+
+# Esri - masquée au chargement
 folium.TileLayer(
     tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     attr="Esri — World Imagery",
     name="Esri Satellite",
     overlay=False,
-    control=False
+    control=True,
+    show=False,
+    maxNativeZoom=19,
+    maxZoom=22,
+    detectRetina=True
 ).add_to(m)
 
+# OSM - masquée au chargement
+folium.TileLayer(
+    tiles="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    attr="© OpenStreetMap contributors",
+    name="OSM Standard",
+    overlay=False,
+    control=True,
+    show=False,
+    maxNativeZoom=19,
+    maxZoom=22
+).add_to(m)
 
 st.markdown("""
 <script>
@@ -1012,6 +1253,11 @@ if "subsegments" not in st.session_state:
 if "profile_counts" not in st.session_state:
     st.session_state["profile_counts"] = {}  # {seg_key: {profile_name: count}}
 existing_geom = st.session_state["edited_geoms"].get(seg_key, [])
+if "edited_polygons" not in st.session_state:
+    st.session_state["edited_polygons"] = {}  # {seg_key: [ [ (lat,lon), ... ], ... ] }
+
+if "surfaces" not in st.session_state:
+    st.session_state["surfaces"] = {}  # {seg_key: [ { "wgs":[(lat,lon)...], "name":str, "color":"#hex", "area_m2":float, "rabot_h_cm":float, "mats":[{mat,ep}], ... } ]}
 
 # Afficher les sous-segments existants (couleur spécifique)
 for it in st.session_state["subsegments"].get(seg_key, []):
@@ -1028,6 +1274,22 @@ for it in st.session_state["subsegments"].get(seg_key, []):
         tooltip=f"{label} — {d_tmp:.2f} m"
     ).add_to(m)
 
+# =========================
+# SURFACES : polygones déjà enregistrés
+# =========================
+for surf in st.session_state["surfaces"].get(seg_key, []):
+    poly = surf.get("wgs", [])
+    if poly:
+        folium.Polygon(
+            locations=poly,
+            color=surf.get("color", "#AA00FF"),
+            weight=2,
+            fill=True,
+            fill_opacity=0.25,
+            tooltip=f"{surf.get('name','Surface')} - {surf.get('area_m2',0):.0f} m²"
+        ).add_to(m)
+
+
 # Afficher l'existant temporaire (toutes polylignes) en couleur actuelle du profil
 if existing_geom:
     # compat : si ancien format (une seule polyligne), encapsule
@@ -1036,45 +1298,39 @@ if existing_geom:
     for line in existing_geom:
         folium.PolyLine(line, color=seg_color, weight=5, opacity=0.95, tooltip="Segment édité").add_to(m)
 
-# Outil de dessin selon la méthode
-if dist_method == "Segment édité":
-    Draw(
-        export=False,
-        draw_options={
-            # La polyligne dessinée adopte la couleur du profil choisi AVANT dessin
-            "polyline": {"shapeOptions": {"color": seg_color, "weight": 5}},
-            "polygon": False,
-            "rectangle": False,
-            "circle": False,
-            "marker": False,
-            "circlemarker": False,
-        },
-        edit_options={"edit": True, "remove": True},
-    ).add_to(m)
+# Outil de dessin : polygon toujours, polyline seulement si "Segment édité"
+polyline_opts = {"shapeOptions": {"color": seg_color, "weight": 5}} if dist_method == "Segment édité" else False
+Draw(
+    export=False,
+    draw_options={
+        "polyline": polyline_opts,  # lignes activées seulement si Segment édité
+        "polygon": {"shapeOptions": {"color": "#AA00FF", "fillColor": "#AA00FF", "fillOpacity": 0.20}},
+        "rectangle": {"shapeOptions": {"color": "#AA00FF", "fillColor": "#AA00FF", "fillOpacity": 0.15}},
+        "circle": False,
+        "marker": False,
+        "circlemarker": False,
+    },
+    edit_options={"edit": True, "remove": True},
+).add_to(m)
 
+with st.expander("ℹ️ Comment utiliser les outils de dessin (segments & surfaces)", expanded=False):
+    st.markdown("""
+**A. Saisie rapide d’un sous-segment sur le bouton a gauche "ligne"**
+1. **Choisissez le Profil** a droite de la carte (ex. 2_voies, 3_voies, Accès).
+3. Cliquez sur **Utiliser ce profil"** pour enregistrer la ligne.
+5. Cliquez sur **“➕ Ajouter comme sous-segment”** (colonne de droite) pour l’appliquer au profil choisi.
+6. Vous pouvez **modifier les largeurs** de ce sous-segment à tout moment.
 
-help_popup = """
-<div style="
-    position: absolute; z-index:9999; top: 90px; right: 12px;
-    background-color: rgba(255,255,255,0.95);
-    border: 2px solid #bbb; border-radius: 6px;
-    padding: 10px; font-size: 13px; width: 260px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);" role="dialog" aria-label="Aide outil de dessin">
-    <b>ℹ️ Comment utiliser l’outil de dessin ?</b><br><br>
-    <ol style="padding-left: 18px; margin: 0;">
-        <li>1. Sélectionnez le <b>Profil Type</b> dans la liste déroulante au-dessus dans Profils et éléments à inclure.</li>
-        <li>2. Cliquez sur l’icône <b>ligne</b> (en haut à gauche de la carte).</li>
-        <li>3. Dessinez votre tracé directement sur la carte.</li>
-        <li>4. Cliquez sur <b>Valider</b> (à droite de l’icône polyligne) pour enregistrer la ligne.</li>
-        <li>5. Cliquez sur <b>Largeurs par élément</b> pour modifier les variables/ligne si nécessaire.</li>
-        <li>6. Cliquez sur <b>“➕ Ajouter comme sous-segment”</b> pour l’appliquer au profil choisi.</li>
-        <li>7. Vous pouvez modifier les variables de l’élément dans <b>Modifier</b> si besoin.</li>
-    </ol>
-    <br>
-</div>
-"""
-m.get_root().html.add_child(folium.Element(help_popup))
+**B. Création d’une surface (polygone)**
+1. Cliquez l’outil **Polygone** ou **Rectangle** dans la barre de dessin.
+2. Dessinez votre surface, puis **Valider**.
+3. Dans la colonne de droite, donnez un **nom** puis cliquez **“➕ Ajouter comme surface”**.
+4. Retrouvez vos surfaces dans l’onglet **Surface** : saisissez la **hauteur de rabotage (cm)** et vos **matériaux** pour obtenir **volumes** et **tonnages** (export CSV).
 
+**Astuce**
+- Les **surfaces affichent l’aire** (m²) arrondie sans décimale.
+- Vous pouvez **supprimer** les tracés temporaires (polygones non ajoutés) avec le bouton 🗑️.
+""")
 
 
 # >>> MODIF : légende sans % si mode 'Segment édité'
@@ -1149,73 +1405,77 @@ if dirmed_df_all is not None and not dirmed_df_all.empty:
                 fill=False,
                 opacity=0.9
             ).add_to(layer_dirmed)
-
-    layer_dirmed.add_to(m)
-    # Permet d'activer/désactiver la couche
-    folium.LayerControl(collapsed=False).add_to(m)
+            
 
 
-
+# Un seul LayerControl (replié -> icône en haut-droite)
+layer_dirmed.add_to(m) 
+folium.LayerControl(collapsed=True, position="topright").add_to(m)
 
 # =========================
 # OUTIL : Cercles d'annotation pour PR intermédiaires
 # =========================
-st.markdown("### Ajouter des cercles d'annotation (PR intermédiaires)")
 
-# Initialisation de la liste des cercles
-if "circles" not in st.session_state:
-    st.session_state["circles"] = []
+# (Optionnel) Nettoyage : une seule clé d'état
+ss.setdefault("circles_panel_open", False)  # garde "circles_panel_open" comme unique référence
+# Affichage conditionnel du panneau en fonction du bouton de la toolbar
+if ss["circles_panel_open"]:
+    with st.expander("⭕ Cercles & annotations", expanded=True):
+        st.markdown("### Ajouter des cercles d'annotation (PR intermédiaires)")
 
-# Choix du PR de base (début, fin ou autre)
-pr_options = [f"PR début ({pr_start})", f"PR fin ({pr_end})"] + [f"PR {p}" for p in subset["pr"].tolist()]
-selected_pr = st.selectbox("Choisir le PR de base", pr_options)
+        # Initialisation de la liste des cercles
+        if "circles" not in st.session_state:
+            st.session_state["circles"] = []
 
-# Rayon et nom du PR intermédiaire
-rayon_m = st.number_input("Rayon (m)", min_value=10.0, step=10.0, value=200.0)
-nom_pr = st.text_input("Nom du PR intermédiaire", value=f"{selected_pr} + {int(rayon_m)}")
+        # Choix du PR de base (début, fin ou autre)
+        pr_options = [f"PR début ({pr_start})", f"PR fin ({pr_end})"] + [f"PR {p}" for p in subset["pr"].tolist()]
+        selected_pr = st.selectbox("Choisir le PR de base", pr_options)
 
-# Bouton pour ajouter le cercle
-if st.button("➕ Ajouter ce cercle"):
-    # Trouver les coordonnées du PR choisi
-    if "début" in selected_pr:
-        base_point = coords_wgs[0]
-    elif "fin" in selected_pr:
-        base_point = coords_wgs[1]
-    else:
-        pr_num = float(selected_pr.replace("PR ", ""))
-        row = subset[subset["pr"] == pr_num].iloc[0]
-        base_point = (float(row["y"]), float(row["x"]))  # lat, lon inversé après conversion
-        base_point = TO_WGS84.transform(row["x"], row["y"])[::-1]
+        # Rayon et nom du PR intermédiaire
+        rayon_m = st.number_input("Rayon (m)", min_value=10.0, step=10.0, value=200.0)
+        nom_pr = st.text_input("Nom du PR intermédiaire", value=f"{selected_pr} + {int(rayon_m)}")
 
-    st.session_state["circles"].append({
-        "center": base_point,
-        "radius": rayon_m,
-        "label": nom_pr
-    })
+        # Bouton pour ajouter le cercle
+        if st.button("➕ Ajouter ce cercle", key="btn_add_circle"):
+            # Trouver les coordonnées du PR choisi
+            if "début" in selected_pr:
+                base_point = coords_wgs[0]
+            elif "fin" in selected_pr:
+                base_point = coords_wgs[1]
+            else:
+                pr_num = float(selected_pr.replace("PR ", ""))
+                row = subset[subset["pr"] == pr_num].iloc[0]
+                base_point = TO_WGS84.transform(row["x"], row["y"])[::-1]  # (lat, lon)
 
-# Bouton pour réinitialiser tous les cercles
-if st.button("🗑️ Supprimer tous les cercles"):
-    st.session_state["circles"] = []
+            st.session_state["circles"].append({
+                "center": base_point,
+                "radius": rayon_m,
+                "label": nom_pr
+            })
 
-# Affichage des cercles et annotations sur la carte
-for idx, c in enumerate(st.session_state["circles"]):
-    folium.Circle(
-        location=c["center"],
-        radius=c["radius"],
-        color="blue",
-        fill=True,
-        fill_opacity=0.1,
-        tooltip=c["label"]
-    ).add_to(m)
+        # Bouton pour réinitialiser tous les cercles
+        if st.button("🗑️ Supprimer tous les cercles", key="btn_clear_circles"):
+            st.session_state["circles"] = []
 
-    folium.Marker(
-        location=c["center"],
-        icon=DivIcon(
-            icon_size=(150, 36),
-            icon_anchor=(0, 0),
-            html=f'<div style="font-size:16px;font-weight:bold;color:#003366;">{c["label"]}</div>'
-        )
-    ).add_to(m)
+        # Affichage des cercles et annotations sur la carte
+        for idx, c in enumerate(st.session_state["circles"]):
+            folium.Circle(
+                location=c["center"],
+                radius=c["radius"],
+                color="blue",
+                fill=True,
+                fill_opacity=0.1,
+                tooltip=c["label"]
+            ).add_to(m)
+
+            folium.Marker(
+                location=c["center"],
+                icon=DivIcon(
+                    icon_size=(150, 36),
+                    icon_anchor=(0, 0),
+                    html=f'<div style="font-size:16px;font-weight:bold;color:#003366;">{c["label"]}</div>'
+                )
+            ).add_to(m)
 
 
 col_map, col_actions = st.columns([4, 1])
@@ -1242,12 +1502,78 @@ if dist_method == "Segment édité":
 
         if merged != prev:  # évite les écritures inutiles (donc évite un rerender gratuit)
             st.session_state["edited_geoms"][seg_key] = merged
+            # Polygones (surfaces) dessinés
+            polys = parse_drawn_polygons(map_data)
+            if polys:
+                prevp = st.session_state["edited_polygons"].get(seg_key, [])
+                # déduplication
+                def _ph(poly, prec=6): return '\n'.join(f"{round(lat,prec)},{round(lon,prec)}" for lat,lon in poly)
+                seenp = {_ph(p) for p in prevp}
+                mergedp = prevp + [p for p in polys if _ph(p) not in seenp]
+                if mergedp != prevp:
+                    st.session_state["edited_polygons"][seg_key] = mergedp       
+            # >>> AJOUT : ouvrir le panneau rapide pour ce segment
+            ss.setdefault("quick_profile_open", {})[seg_key] = True
+            ss.setdefault("quick_profile_choice", {}).pop(seg_key, None)
+            ss.setdefault("profile_ready", {})[seg_key] = False  # on réinitialise le choix rapide
+
+# Polygones (surfaces) dessinés — hors dépendance aux polylignes
+polys_any = parse_drawn_polygons(map_data)
+if polys_any:
+    prevp = st.session_state["edited_polygons"].get(seg_key, [])
+    def _ph2(poly, prec=6):
+        return '\n'.join(f"{round(lat,prec)},{round(lon,prec)}" for lat,lon in poly)
+    seenp = {_ph2(p) for p in prevp}
+    mergedp = prevp + [p for p in polys_any if _ph2(p) not in seenp]
+    if mergedp != prevp:
+        st.session_state["edited_polygons"][seg_key] = mergedp
 
 with col_actions:
     st.markdown("**Actions**")
     if st.button("Réinitialiser le tracé édité"):
         st.session_state["edited_geoms"].pop(seg_key, None)
+        # >>> AJOUT : fermer le mini-panneau si ouvert
+        ss.get("quick_profile_open", {}).pop(seg_key, None)
+        ss.get("quick_profile_choice", {}).pop(seg_key, None)
+        ss.get("profile_ready", {}).pop(seg_key, None)
         st.rerun()
+
+# Purge des polygones temporaires (non ajoutés)
+    if st.button("🗑️ Supprimer les surfaces en cours (polygones non ajoutés)"):
+        st.session_state["edited_polygons"].pop(seg_key, None)
+        st.rerun()
+
+    # Ajouter comme surface depuis les polygones dessinés
+    edited_polys = st.session_state.get("edited_polygons", {}).get(seg_key, []) or []
+    if edited_polys:
+        # choisir le plus grand polygone par aire projetée
+        areas = [polygon_area_m2_from_wgs(p) for p in edited_polys]
+        idx_max = int(max(range(len(areas)), key=lambda i: areas[i])) if areas else 0
+
+        # nom par défaut
+        nb = len(st.session_state.get("surfaces", {}).get(seg_key, [])) + 1
+        surf_name = st.text_input("Nom de la surface", value=f"Surface_{nb}", key=f"surf_name_{seg_key}")
+
+        if st.button("➕ Ajouter comme surface", key=f"btn_add_surface_{seg_key}"):
+            chosen_poly = edited_polys[idx_max]
+            area_m2 = polygon_area_m2_from_wgs(chosen_poly)
+            new_surf = {
+                "wgs": chosen_poly,
+                "name": surf_name or f"Surface_{nb}",
+                "color": "#AA00FF",
+                "area_m2": float(area_m2),
+                "rabot_h_cm": 0.0,
+                "mats": []
+            }
+            lst = st.session_state["surfaces"].get(seg_key, [])
+            lst.append(new_surf)
+            st.session_state["surfaces"][seg_key] = lst
+
+            # vider les polygones temporaires pour éviter les doublons
+            st.session_state["edited_polygons"].pop(seg_key, None)
+            st.rerun()
+    else:
+        st.caption("Dessine un polygone puis ajoute-le comme surface.")
 
     # Liste et gestion des sous-segments
     subsegs = st.session_state["subsegments"].get(seg_key, [])
@@ -1263,7 +1589,49 @@ with col_actions:
         edited_wgs_list = st.session_state["edited_geoms"].get(seg_key) or []
         if edited_wgs_list and isinstance(edited_wgs_list[0], tuple):
             edited_wgs_list = [edited_wgs_list]  # compat ancien format
-        can_add = bool(edited_wgs_list)
+
+        # >>> AJOUT : mini-panneau "Profil rapide"
+        if edited_wgs_list and ss.get("quick_profile_open", {}).get(seg_key, False):
+            st.markdown(
+                "<div style='border:1px solid #ddd;padding:10px;border-radius:8px;background:#fff'>"
+                "<b>Profil rapide (nouveau tracé)</b></div>",
+                unsafe_allow_html=True
+            )
+            # >>> options avec placeholder en tête
+            quick_opts = ["— choisir —"] + list(PROFILES.keys())
+
+            # >>> plus de pré-sélection : on démarre sur le placeholder
+            quick_choice = st.radio(
+                "Type de profil", quick_opts,
+                index=0,  # 0 = "— choisir —"
+                format_func=lambda k: k.replace("_"," "),
+                key=f"quick_prof_radio_{seg_key}",
+                label_visibility="collapsed",
+                horizontal=False
+            )
+
+            c_ok, c_close = st.columns(2)
+            with c_ok:
+                # >>> bouton inactif tant qu'aucun vrai profil n'est choisi
+                use_disabled = (quick_choice == "— choisir —")
+                if st.button("✅ Utiliser ce profil",
+                            use_container_width=True,
+                            key=f"quick_prof_use_{seg_key}",
+                            disabled=use_disabled):
+                    ss.setdefault("quick_profile_choice", {})[seg_key] = quick_choice
+                    ss.setdefault("quick_profile_apply", {})[seg_key] = True
+                    # >>> marquer ce segment comme "prêt"
+                    ss.setdefault("profile_ready", {})[seg_key] = True
+                    st.rerun()
+
+            with c_close:
+                if st.button("✖ Fermer", use_container_width=True, key=f"quick_prof_close_{seg_key}"):
+                    ss["quick_profile_open"][seg_key] = False
+                    st.rerun()
+
+        profile_ready = ss.get("profile_ready", {}).get(seg_key, False)
+        can_add = bool(edited_wgs_list) and profile_ready
+
 
         # 🔑 un seul bouton "Ajouter", avec key unique (supprime le doublon plus bas)
         if st.button(
@@ -1311,77 +1679,96 @@ with col_actions:
     else:
         st.caption("ℹ️ Mode lecture seule (outils masqués).")
 
-    # Liste des sous-segments saisis (avec suppression unitaire)
-    if st.session_state["subsegments"].get(seg_key):
+
+    # Liste des sous-segments saisis (résumé compact + détails)
+    sub_list = st.session_state["subsegments"].get(seg_key, [])
+    if sub_list:
         st.markdown("**Sous-segments saisis**")
-        to_delete = None
-        for idx, it in enumerate(st.session_state["subsegments"][seg_key]):
+
+        # --- Styles compacts en chips (pas d'élargissement de colonne)
+        st.markdown("""
+        <style>
+        .ss-wrap{display:flex;flex-wrap:wrap;gap:6px;row-gap:6px;align-items:center;max-width:100%;}
+        .ss-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;
+                border-radius:999px;border:1px solid #e5e7eb;background:#f8fafc;
+                font-size:12px;line-height:1;white-space:nowrap;max-width:100%;
+                overflow:hidden;text-overflow:ellipsis;}
+        .ss-dot{width:8px;height:8px;border-radius:50%;}
+        </style>
+        """, unsafe_allow_html=True)
+
+        # --- Résumé ultra-compact : Label (couleur) + distance
+        st.markdown('<div class="ss-wrap">', unsafe_allow_html=True)
+        for idx, it in enumerate(sub_list):
             l93 = wgs_to_l93(it["wgs"])
-            dist = planimetric_distance_l93(l93)
-            dist = max(dist * float(curvature_factor), 0.0)
+            dist_m = max(planimetric_distance_l93(l93) * float(curvature_factor), 0.0)
             label = it.get("profile_label", f"{it.get('profile_name','mix')}_{idx+1}")
+            st.markdown(
+                f'<span class="ss-chip"><span class="ss-dot" style="background:{it["color"]}"></span>'
+                f'{label}&nbsp;•&nbsp;{dist_m:.0f}&nbsp;m</span>',
+                unsafe_allow_html=True
+            )
+        st.markdown('</div>', unsafe_allow_html=True)
 
-            # Compat : initialiser "widths" si sous-segment ancien (avant patch)
-            if "widths" not in it or not isinstance(it["widths"], dict):
-                it["widths"] = widths_applied.copy()
+        # --- Détails/édition (compactés dans un expander)
+        with st.expander("Détails & édition (optionnel)", expanded=False):
+            to_delete = None
+            for idx, it in enumerate(sub_list):
+                l93 = wgs_to_l93(it["wgs"])
+                dist = max(planimetric_distance_l93(l93) * float(curvature_factor), 0.0)
+                label = it.get("profile_label", f"{it.get('profile_name','mix')}_{idx+1}")
 
-            st.markdown(f"""
-            <div style="border:2px solid {it['color']}; 
-                        background-color:{it['color']}22;
-                        border-radius:8px; padding:10px; margin-bottom:8px;">
-            <b>Sous-segment #{idx+1}</b><br>
-            Profil : <span style="color:{it['color']};font-weight:600;">{label}</span><br>
-            Distance : {dist:.1f} m
-            </div>
-            """, unsafe_allow_html=True)
+                # Compat : initialiser "widths" si ancien sous-segment
+                if "widths" not in it or not isinstance(it["widths"], dict):
+                    it["widths"] = widths_applied.copy()
 
+                # Carte info compacte (width safe)
+                st.markdown(
+                    f"""
+                    <div style="border:2px solid {it['color']};
+                                background-color:{it['color']}22;
+                                border-radius:8px;padding:8px;margin-bottom:6px;max-width:100%;">
+                    <b>#{idx+1}</b> — <span style="color:{it['color']};font-weight:600;">{label}</span>
+                    &nbsp;•&nbsp;{dist:.1f} m
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
 
-            # --- Éditeur des largeurs par sous-segment ---
-            with st.expander(f"Modifier les largeurs pour {label}", expanded=False):
-                st.caption("Ces largeurs n'affectent que ce sous‑segment.")
-                cols = st.columns(3)
-                for j, e in enumerate(ALL_ELEMENTS):
-                    with cols[j % 3]:
-                        current_val = float(it["widths"].get(e, DEFAULT_WIDTHS.get(e, 0.0)))
-                        it["widths"][e] = st.number_input(
-                            f"{e}",
-                            value=current_val,
-                            step=0.1,
-                            min_value=0.0,
-                            key=f"w_{seg_key}_{idx}_{e}"
-                        )
+                # Éditeur des largeurs (inchangé)
+                with st.expander(f"Modifier les largeurs — {label}", expanded=False):
+                    st.caption("Ces largeurs n'affectent que ce sous-segment.")
+                    cols = st.columns(3)
+                    for j, e in enumerate(ALL_ELEMENTS):
+                        with cols[j % 3]:
+                            current_val = float(it["widths"].get(e, DEFAULT_WIDTHS.get(e, 0.0)))
+                            it["widths"][e] = st.number_input(
+                                f"{e}", value=current_val, step=0.1, min_value=0.0,
+                                key=f"w_{seg_key}_{idx}_{e}"
+                            )
 
-                # --- Ligne de boutons "reset" centrée et horizontale ---
-                # 1) Colonnes externes pour le centrage (marges gauche/droite)
-                margin_left, center_block, margin_right = st.columns([1, 2, 1])
-                with center_block:
-                    # 2) Colonnes internes pour les 2 boutons (avec un petit espace au milieu)
-                    bcol1, spacer, bcol2 = st.columns([1, 0.15, 1])
+                    # Ligne de 2 boutons centrés (copier/reset)
+                    m_l, m_c, m_r = st.columns([1, 2, 1])
+                    with m_c:
+                        b1, _, b2 = st.columns([1, 0.15, 1])
+                        with b1:
+                            if st.button("↺ Copier global", key=f"copy_global_{seg_key}_{idx}"):
+                                it["widths"] = widths_applied.copy()
+                                st.rerun()
+                        with b2:
+                            if st.button("↺ Réinit défauts", key=f"reset_defaults_{seg_key}_{idx}"):
+                                it["widths"] = {e: float(DEFAULT_WIDTHS.get(e, 0.0)) for e in ALL_ELEMENTS}
+                                st.rerun()
 
-                    with bcol1:
-                        if st.button("↺", key=f"copy_global_{seg_key}_{idx}"):
-                            it["widths"] = widths_applied.copy()
-                            st.rerun()
-
-                    with bcol2:
-                        if st.button("↺", key=f"reset_defaults_{seg_key}_{idx}"):
-                            it["widths"] = {e: float(DEFAULT_WIDTHS.get(e, 0.0)) for e in ALL_ELEMENTS}
-                            st.rerun()
-
-            # Bouton supprimer (inchangé)
-            if st.button(f"Supprimer #{idx+1}", key=f"del_{seg_key}_{idx}"):
-                to_delete = idx
+                # Suppression unitaire – petit bouton
+                if st.button(f"Supprimer #{idx+1}", key=f"del_{seg_key}_{idx}"):
+                    to_delete = idx
 
             if to_delete is not None:
                 st.session_state["subsegments"][seg_key].pop(to_delete)
-            st.rerun()
+                st.rerun()
 
 
-# Mise à jour de la géométrie depuis la carte (mode édition)
-if dist_method == "Segment édité":
-    drawn_list = parse_drawn_polylines(map_data)
-    if drawn_list:
-        st.session_state["edited_geoms"][seg_key] = drawn_list
 
 # =========================
 # Calcul des distances et surfaces
@@ -1389,17 +1776,27 @@ if dist_method == "Segment édité":
 
 st.markdown("#### Lancement des calculs")
 
-# Pour soulager l'app : pas de recalcul en continu, sauf si l'utilisateur l'active
 auto_compute = st.toggle(
     "Calcul automatique à chaque changement", value=False,
-    help="Quand désactivé, les calculs ne s'exécutent que via le bouton ci-dessous."
+    help="Quand désactivé, les calculs ne s'exécutent que via le bouton ci-dessous.",
+    key="toggle_auto_compute"
 )
 
-do_compute = auto_compute or st.button("🚀 Lancer les calculs", type="primary")
+# Bouton de calcul propre au segment
+button_key = f"compute_btn_{seg_key}"
+manual_compute = st.button("🚀 Lancer les calculs", type="primary", key=button_key)
 
-if not do_compute:
-    st.info("Ajuste les filtres et la sélection (route/côté/PR), puis lance les calculs.")
-    st.stop()
+# Petit cache persistant des résultats et état 'débloqué' du panneau Résultats
+calc_cache = st.session_state.setdefault("calc_cache", {})  # {seg_key: {"areas_df_fr": df}}
+if "calc_unlocked" not in st.session_state:
+    st.session_state["calc_unlocked"] = False
+
+# Décision de calcul
+do_compute = auto_compute or manual_compute
+if do_compute:
+    # Dès qu'on calcule une fois, on 'débloque' l'affichage des Résultats pour ce run et les suivants
+    st.session_state["calc_unlocked"] = True
+
 
 subsegs = st.session_state["subsegments"].get(seg_key, [])
 areas_df = pd.DataFrame([])
@@ -1483,6 +1880,33 @@ cols_order = [
 ]
 areas_df_fr = areas_df_fr[cols_order + [c for c in areas_df_fr.columns if c not in cols_order]]
 
+# -- Cache du dernier résultat pour ce segment
+st.session_state["calc_cache"][seg_key] = {
+    "areas_df_fr": areas_df_fr
+}
+# -- Si on n'a PAS calculé cette fois-ci, réutiliser le dernier résultat si disponible
+if not do_compute:
+    if st.session_state.get("calc_unlocked") and seg_key in st.session_state["calc_cache"]:
+        areas_df_fr = st.session_state["calc_cache"][seg_key]["areas_df_fr"]
+        st.info("Affichage des résultats du dernier calcul (pas de mise à jour automatique).")
+        # distance_display_m, total_area, recap_elements dépendent de areas_df_fr -> on les reconstitue si besoin
+        try:
+            # Recalcule minimal pour les KPI d'en-tête à partir du tableau détaillé
+            distance_display_m = float(areas_df_fr.get("distance_m", pd.Series([0])).dropna().iloc[0]) if "distance_m" in areas_df_fr.columns else 0.0
+            total_area = float(areas_df_fr["surface_m2"].sum()) if "surface_m2" in areas_df_fr.columns else 0.0
+            recap_elements = (
+                areas_df_fr.groupby("élément", as_index=False)[["surface_m2"]]
+                .sum()
+                .sort_values("surface_m2", ascending=False)
+                if "élément" in areas_df_fr.columns and "surface_m2" in areas_df_fr.columns
+                else pd.DataFrame(columns=["élément","surface_m2"])
+            )
+            surface_totale_voirie = total_area
+        except Exception:
+            pass  # on garde les valeurs existantes si tout est déjà en place
+    else:
+        st.info("Ajuste les filtres et la sélection (route/côté/PR), puis lance les calculs.")
+        st.stop()
 # =========================
 # Résultats
 # =========================
@@ -1561,10 +1985,10 @@ else:
 
 
 # =========================
-# Rabotage & Reprofilage  (PATCH simplifié & robuste)
+# Rabotage & Reprofilage  
 # =========================
 st.markdown("---")
-st.markdown("## Rabotage & Reprofilage")
+st.markdown("## Rabotage & Reprofilage & Surface")
 
 # ---- Utilitaires déjà présents plus haut ----
 # _ensure_surfaces_source(mode_base, recap_elements_df, surface_totale)
@@ -1629,7 +2053,7 @@ def _export_suffix(route: str, cote: str, pr_start: float, pr_end: float) -> str
 
 
 
-tab_rabot, tab_reprof = st.tabs(["Rabotage", "Reprofilage"])
+tab_rabot, tab_reprof, tab_surface = st.tabs(["Rabotage", "Reprofilage", "Surface"])
 
 # ─────────────────────────────────────────────────────────────
 # Onglet 1 : RABOTAGE  → Surface (m²) × Épaisseur (cm) = Volume (m³)
@@ -1645,7 +2069,7 @@ with tab_rabot:
         "Base de calcul",
         ["Toute la voirie", "Par élément"],
         horizontal=True,
-        key="base_rabot_multi",
+        key=f"base_rabot_multi__{seg_key}",
         help=("Toute la voirie : un total unique. Par élément : un total par BAU/BDG/VL/VR/VM/VS/BRET.")
     )
     rabot_src = _ensure_surfaces_source(base_rabot, recap_elements, surface_totale_voirie).copy()
@@ -1909,9 +2333,6 @@ def _safe_default_density(mat: str, materials_df: pd.DataFrame) -> float:
     except Exception:
         return 0.0
 
-
-
-
 # =========================
 # Onglet 2 : REPROFILAGE SIMPLIFIÉ MULTI-MATÉRIAUX
 # =========================
@@ -1923,7 +2344,7 @@ with tab_reprof:
         "Base de calcul",
         ["Toute la voirie", "Par élément"],
         horizontal=True,
-        key="base_reprof_simple"
+        key=f"base_reprof_simple__{seg_key}"
     )
 
     # 2) Source des surfaces (élément + surface_m2)
@@ -2150,7 +2571,119 @@ with tab_reprof:
 
 
 
+# =========================
+# Onglet 3 : SURFACE — créer/nommer des surfaces et calculs simples
+# =========================
+with tab_surface:
+    st.subheader("Surfaces dessinées (polygones)")
+    surfs = st.session_state.get("surfaces", {}).get(seg_key, [])
+    if not surfs:
+        st.info("Aucune surface n'a encore été ajoutée. Dessine un polygone sur la carte puis ajoute-le via le bouton dans la colonne de droite.")
+    else:
+        rows = []
+        for i, s in enumerate(surfs):
+            st.markdown(f"### {s.get('name','Surface')} - {s.get('area_m2',0):.0f} m²")
+            # Renommer
+            s['name'] = st.text_input("Nom", value=s.get('name','Surface'), key=f"surf_name_edit_{seg_key}_{i}")
+            # Rabotage simple (hauteur unique)
+            h = st.number_input("Hauteur de rabotage (cm)", min_value=0.0, step=0.5,
+                                value=float(s.get('rabot_h_cm', 0.0)),
+                                key=f"surf_rabot_h_{seg_key}_{i}")
+            s['rabot_h_cm'] = float(h)
+            vol_rabot = float(s.get('area_m2',0.0)) * (h / 100.0)
 
+            # Reprofilage (liste matériaux avec densité par défaut)
+            materials_df = st.session_state.get("materials_df", pd.DataFrame(DEFAULT_MATERIALS))
+            mat_opts = materials_df["matériau"].astype(str).tolist() if not materials_df.empty else []
+            list_key = f"surf_mats_{seg_key}_{i}"
+            if list_key not in st.session_state:
+                st.session_state[list_key] = s.get('mats', []) or (
+                    [{"mat": mat_opts[0], "ep": float(_safe_default_thickness(mat_opts[0], materials_df))}] if mat_opts else []
+                )
+            mats_list = st.session_state[list_key]
+
+            local_rows = []
+            to_del = None
+            for j, item in enumerate(list(mats_list)):
+                col1, col2, col3, col4 = st.columns([2, 2, 2, 1], vertical_alignment='center')
+                with col1:
+                    try:
+                        idx = mat_opts.index(str(item.get('mat', mat_opts[0] if mat_opts else '')))
+                    except ValueError:
+                        idx = 0
+                    mat = st.selectbox(f"Matériau {j+1}", mat_opts, index=idx if mat_opts else 0,
+                                       key=f"surf_mat_{seg_key}_{i}_{j}")
+                with col2:
+                    dens = float(_safe_default_density(mat, materials_df)) if mat_opts else 0.0
+                    st.write(f"Densité : **{dens:.2f} t/m³**")
+                with col3:
+                    ep = st.number_input(f"Épaisseur {j+1} (cm)", min_value=0.0, step=0.5,
+                                         value=float(item.get('ep', _safe_default_thickness(mat, materials_df))),
+                                         key=f"surf_ep_{seg_key}_{i}_{j}")
+                with col4:
+                    if st.button("❌", key=f"surf_del_{seg_key}_{i}_{j}"):
+                        to_del = j
+                # maj
+                if j < len(mats_list):
+                    mats_list[j] = {"mat": mat, "ep": ep}
+                vol = float(s.get('area_m2',0.0)) * (float(ep) / 100.0)
+                ton = vol * dens
+                local_rows.append({"surface": s.get('name','Surface'), "matériau": mat, "épaisseur_cm": ep,
+                                   "volume_m3": vol, "tonnage_t": ton})
+
+            if to_del is not None:
+                mats_list.pop(to_del); st.rerun()
+
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("+ Ajouter un matériau", key=f"surf_addmat_{seg_key}_{i}"):
+                    if mat_opts:
+                        mats_list.append({"mat": mat_opts[0], "ep": float(_safe_default_thickness(mat_opts[0], materials_df))})
+                        st.rerun()
+            with c2:
+                if st.button("⟲ Réinitialiser matériaux", key=f"surf_resetmat_{seg_key}_{i}"):
+                    st.session_state[list_key] = [{"mat": mat_opts[0], "ep": float(_safe_default_thickness(mat_opts[0], materials_df))}] if mat_opts else []
+                    st.rerun()
+
+            # Persister dans l'objet surface
+            s['mats'] = mats_list
+            # Récap surface
+            if local_rows:
+                df_loc = pd.DataFrame(local_rows)
+                st.dataframe(df_loc, width='stretch')
+                vol_reprof = float(df_loc['volume_m3'].sum())
+                ton_reprof = float(df_loc['tonnage_t'].sum())
+            else:
+                vol_reprof, ton_reprof = 0.0, 0.0
+            rows.append({
+                "surface": s.get('name','Surface'),
+                "aire_m2": float(s.get('area_m2',0.0)),
+                "rabot_h_cm": float(h),
+                "vol_rabot_m3": float(vol_rabot),
+                "vol_reprof_m3": float(vol_reprof),
+                "tonnage_t": float(ton_reprof),
+            })
+
+            if st.button(f"🗑️ Supprimer {s.get('name','Surface')}", key=f"surf_delete_{seg_key}_{i}"):
+                surfs.pop(i)
+                st.session_state.get("surfaces", {}).setdefault(seg_key, surfs)
+                st.rerun()
+
+        # Summary global + export
+        st.session_state.get("surfaces", {}).setdefault(seg_key, surfs)
+        df_summary = pd.DataFrame(rows)
+        st.markdown("#### ✅ Récapitulatif Surfaces")
+        st.dataframe(df_summary, width='stretch')
+        k1, k2, k3 = st.columns(3)
+        with k1: st.metric("Aire totale (m²)", f"{df_summary['aire_m2'].sum():.0f}")
+        with k2: st.metric("Volume rabotage total (m³)", f"{df_summary['vol_rabot_m3'].sum():,.2f}".replace(',', ' '))
+        with k3: st.metric("Tonnage reprofilage total (t)", f"{df_summary['tonnage_t'].sum():,.2f}".replace(',', ' '))
+        st.download_button(
+            "Télécharger le récap surfaces (CSV)",
+            data=df_summary.to_csv(index=False).encode('utf-8'),
+            file_name=f"surfaces_recap_{_export_suffix(route, cote, pr_start, pr_end)}.csv",
+            mime="text/csv",
+        )
 
 
 # =========================
