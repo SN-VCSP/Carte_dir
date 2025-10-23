@@ -1131,7 +1131,18 @@ except Exception:
 # Créer la map sans tuile par défaut
 m = folium.Map(location=map_center, zoom_start=_zoom, control_scale=True, tiles=None)
 
-m.add_child(MeasureControl())
+m.add_child(
+    MeasureControl(
+        position="topleft",
+        primary_length_unit="meters",
+        secondary_length_unit="kilometers",
+        primary_area_unit="sqmeters",
+        secondary_area_unit="hectares",
+        dec_points=2,
+        thousands_sep=" ",
+        localization="fr",
+    )
+)
 
 # IGN - Orthophotos -> défaut
 folium.TileLayer(
@@ -1411,8 +1422,7 @@ if dirmed_df_all is not None and not dirmed_df_all.empty:
 
 
 # Un seul LayerControl (replié -> icône en haut-droite)
-if 'layer_dirmed' in locals() and layer_dirmed is not None:
-    layer_dirmed.add_to(m)
+layer_dirmed.add_to(m)
 folium.LayerControl(collapsed=True, position="topright").add_to(m)
 
 # =========================
