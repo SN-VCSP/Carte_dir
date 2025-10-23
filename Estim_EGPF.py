@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import folium
-from folium.plugins import Draw
+from folium.plugins import Draw, MeasureControl
 from folium.features import DivIcon
 from streamlit_folium import st_folium
 from pyproj import Transformer
@@ -1131,6 +1131,8 @@ except Exception:
 # Créer la map sans tuile par défaut
 m = folium.Map(location=map_center, zoom_start=_zoom, control_scale=True, tiles=None)
 
+m.add_child(MeasureControl())
+
 # IGN - Orthophotos -> défaut
 folium.TileLayer(
     tiles=(
@@ -1409,7 +1411,8 @@ if dirmed_df_all is not None and not dirmed_df_all.empty:
 
 
 # Un seul LayerControl (replié -> icône en haut-droite)
-layer_dirmed.add_to(m) 
+if 'layer_dirmed' in locals() and layer_dirmed is not None:
+    layer_dirmed.add_to(m)
 folium.LayerControl(collapsed=True, position="topright").add_to(m)
 
 # =========================
