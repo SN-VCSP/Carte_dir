@@ -790,7 +790,8 @@ with st.sidebar:
         else:
             route = st.selectbox("Route", sorted(_df_f["route"].astype(str).unique()))
             cotes_dispo = _df_f.loc[_df_f["route"] == route, "cote"].astype(str).unique().tolist()
-            cote = st.selectbox("Côté", sorted(cotes_dispo))
+            cote_map = {"D": "Sens 1", "G": "Sens 2"}
+            cote = st.selectbox("Côté", sorted(cotes_dispo), format_func=lambda x: cote_map.get(x, x))
 
             subset = _df_f[( _df_f["route"] == route) & (_df_f["cote"] == cote)].sort_values("pr").reset_index(drop=True)
             prs = sorted(subset["pr"].dropna().unique().tolist())
