@@ -790,7 +790,8 @@ with st.sidebar:
         else:
             route = st.selectbox("Route", sorted(_df_f["route"].astype(str).unique()))
             cotes_dispo = _df_f.loc[_df_f["route"] == route, "cote"].astype(str).unique().tolist()
-            cote = st.selectbox("Côté", sorted(cotes_dispo))
+            cote_map = {"D": "Sens 1", "G": "Sens 2"}
+            cote = st.selectbox("Côté", sorted(cotes_dispo), format_func=lambda x: cote_map.get(x, x))
 
             subset = _df_f[( _df_f["route"] == route) & (_df_f["cote"] == cote)].sort_values("pr").reset_index(drop=True)
             prs = sorted(subset["pr"].dropna().unique().tolist())
@@ -1131,7 +1132,18 @@ except Exception:
 # Créer la map sans tuile par défaut
 m = folium.Map(location=map_center, zoom_start=_zoom, control_scale=True, tiles=None)
 
-m.add_child(MeasureControl())
+m.add_child(
+    MeasureControl(
+        position="topleft",
+        primary_length_unit="meters",
+        secondary_length_unit="kilometers",
+        primary_area_unit="sqmeters",
+        secondary_area_unit="hectares",
+        dec_points=2,
+        thousands_sep=" ",
+        localization="fr",
+    )
+)
 
 # IGN - Orthophotos -> défaut
 folium.TileLayer(
@@ -1411,8 +1423,7 @@ if dirmed_df_all is not None and not dirmed_df_all.empty:
 
 
 # Un seul LayerControl (replié -> icône en haut-droite)
-if 'layer_dirmed' in locals() and layer_dirmed is not None:
-    layer_dirmed.add_to(m)
+layer_dirmed.add_to(m)
 folium.LayerControl(collapsed=True, position="topright").add_to(m)
 
 # =========================
